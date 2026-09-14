@@ -17,6 +17,7 @@ public class DataPivotInitializer implements StartupActivity.DumbAware {
         initDefaultStrategy(DataPivotApplication.getInstance(project));
         initDataPivotDatabaseInfo(project);
         initDataPivotSettingInfo(project);
+        // Safety net for any leftover entries; Query uses QueryTool pools, not startup JDBC.
         Disposer.register(project, DatabaseUtil::closeConnections);
         Disposer.register(project, QueryTool::closeAllConnections);
         Disposer.register(project, DataSourceDriverUtil::deregisterAllDrivers);

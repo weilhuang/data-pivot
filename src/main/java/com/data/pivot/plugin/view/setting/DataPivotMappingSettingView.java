@@ -7,6 +7,7 @@ import com.data.pivot.plugin.constants.DataPivotConstants;
 import com.data.pivot.plugin.context.DataPivotApplication;
 import com.data.pivot.plugin.entity.DataPivotMappingSettingInfo;
 import com.data.pivot.plugin.i18n.DataPivotBundle;
+import com.data.pivot.plugin.mapping.MappingResolver;
 import com.data.pivot.plugin.tool.MessageUtil;
 import com.data.pivot.plugin.tool.ProjectUtils;
 import com.data.pivot.plugin.view.DataPivotTableColumn;
@@ -153,6 +154,7 @@ public class DataPivotMappingSettingView implements Configurable {
         List<DataPivotMappingSettingInfo> current = MappingSettingSupport.copyAll(tableComponent.getDataList());
         new DataPivotMappingSettingInfo().save(current);
         DataPivotApplication.getInstance().CACHE.DP_MAPPING_SETTING_INFO_LIST_CACHE.update(current);
+        MappingResolver.clearCache();
         this.originalList = MappingSettingSupport.copyAll(current);
     }
 

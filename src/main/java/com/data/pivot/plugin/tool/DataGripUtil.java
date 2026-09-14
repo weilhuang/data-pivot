@@ -1,12 +1,13 @@
 package com.data.pivot.plugin.tool;
 
 import cn.hutool.core.util.StrUtil;
-import com.data.pivot.plugin.config.DataPivotLineMarkerProvider;
 import com.data.pivot.plugin.constants.DataPivotConstants;
 import com.data.pivot.plugin.entity.DataPivotDatabaseInfo;
 import com.data.pivot.plugin.entity.DatabaseQueryConfig;
 import com.data.pivot.plugin.enums.DBType;
 import com.data.pivot.plugin.i18n.DataPivotBundle;
+import com.data.pivot.plugin.mapping.MappingHit;
+import com.data.pivot.plugin.mapping.MappingResolver;
 import com.intellij.database.cli.DbCliUtil;
 import com.intellij.database.dataSource.DatabaseDriver;
 import com.intellij.database.dataSource.LocalDataSource;
@@ -19,7 +20,6 @@ import com.intellij.database.psi.DbTable;
 import com.intellij.database.util.TreePattern;
 import com.intellij.database.util.TreePatternNode;
 import com.intellij.openapi.editor.Editor;
-import com.intellij.psi.PsiClass;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiField;
 import org.jetbrains.annotations.NotNull;
@@ -154,15 +154,22 @@ public class DataGripUtil {
     }
 
     public static @Nullable DatabaseQueryConfig getDatabaseQueryConfigByPsiElement(@NotNull PsiElement psiElement,Editor editor) {
-        PsiField psiField = (PsiField) psiElement;
-        PsiClass containingClass = psiField.getContainingClass();
-        DbTable tableInfo = DataPivotLineMarkerProvider.getTableInfo(containingClass);
-        if (tableInfo == null) {
-            MessageUtil.Hint.error(editor, DataPivotBundle.message(
-                    "data.pivot.query.hint.table.null", containingClass.getName()));
+        if (!(psiElement instanceof PsiField psiField)) {
             return null;
         }
-        DbColumn columnInfo = DataPivotLineMarkerProvider.getColumnInfo(tableInfo, psiField);
+        MappingHit hit = MappingResolver.resolveField(psiField);
+        if (hit.isAmbiguous()) {
+            MessageUtil.Hint.error(editor, DataPivotBundle.message(
+                    "data.pivot.query.hint.table.ambiguous", psiField.getContainingClass().getName()));
+            return null;
+        }
+        DbTable tableInfo = hit.getTable();
+        if (tableInfo == null) {
+            MessageUtil.Hint.error(editor, DataPivotBundle.message(
+                    "data.pivot.query.hint.table.null", psiField.getContainingClass().getName()));
+            return null;
+        }
+        DbColumn columnInfo = hit.getColumn();
         if (columnInfo == null) {
             MessageUtil.Hint.error(editor, DataPivotBundle.message(
                     "data.pivot.query.hint.column.null", psiField.getName()));

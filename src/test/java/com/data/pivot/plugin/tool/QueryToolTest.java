@@ -91,6 +91,65 @@ public class QueryToolTest {
         assertEquals("SELECT TOP 20 id FROM demo.dbo.user_account", sql);
     }
 
+    @Test
+    public void generateMysqlAnalysisSqlQuotesIdentifiersAndLimitsDistinctValues() {
+        DatabaseQueryConfig config = config(DBType.MYSQL, List.of("name"), "name", null);
+
+        String sql = QueryTool.generateAnalysisSql(config);
+
+        assertEquals(
+                "SELECT `name`, COUNT(*) AS rs_count, ROUND(COUNT(*) * 100.0 / NULLIF((SELECT COUNT(*) FROM `demo`.`user_account`), 0), 2) AS percentage FROM `demo`.`user_account` GROUP BY `name` ORDER BY rs_count DESC, percentage DESC LIMIT 20",
+                sql);
+    }
+
+    @Test
+    public void generatePostgresAnalysisSqlUsesQuotedIdentifiers() {
+        DatabaseQueryConfig config = config(DBType.POSTGRES, List.of("name"), "name", null);
+
+        String sql = QueryTool.generateAnalysisSql(config);
+
+        assertEquals(
+                "SELECT \"name\", COUNT(*) AS rs_count, ROUND(COUNT(*) * 100.0 / NULLIF((SELECT COUNT(*) FROM \"demo\".\"user_account\"), 0), 2) AS percentage FROM \"demo\".\"user_account\" GROUP BY \"name\" ORDER BY rs_count DESC, percentage DESC LIMIT 20",
+                sql);
+    }
+
+    @Test
+    public void generateOracleAnalysisSqlWrapsGroupByWithRownumLimit() {
+        DatabaseQueryConfig config = config(DBType.ORACLE, List.of("name"), "name", null);
+
+        String sql = QueryTool.generateAnalysisSql(config);
+
+        assertEquals(
+                "SELECT * FROM (SELECT \"name\", COUNT(*) AS rs_count, ROUND(COUNT(*) * 100.0 / NULLIF((SELECT COUNT(*) FROM \"demo\".\"user_account\"), 0), 2) AS percentage FROM \"demo\".\"user_account\" GROUP BY \"name\" ORDER BY COUNT(*) DESC) WHERE ROWNUM <= 20",
+                sql);
+    }
+
+    @Test
+    public void generateSqlServerAnalysisSqlUsesTopAndBracketQuotes() {
+        DatabaseQueryConfig config = new DatabaseQueryConfig(
+                "ds",
+                DBType.MSSQL,
+                "jdbc:sqlserver://localhost:1433;databaseName=demo",
+                "user",
+                "password",
+                "driver",
+                List.of(),
+                "demo",
+                "dbo",
+                "user_account",
+                List.of("name"),
+                "name",
+                null,
+                null
+        );
+
+        String sql = QueryTool.generateAnalysisSql(config);
+
+        assertEquals(
+                "SELECT TOP 20 [name], COUNT(*) AS rs_count, ROUND(COUNT(*) * 100.0 / NULLIF((SELECT COUNT(*) FROM [demo].[dbo].[user_account]), 0), 2) AS percentage FROM [demo].[dbo].[user_account] GROUP BY [name] ORDER BY COUNT(*) DESC",
+                sql);
+    }
+
     private static DatabaseQueryConfig config(DBType dbType, List<String> columns, String conditionField, String likeValue) {
         return new DatabaseQueryConfig(
                 "ds",

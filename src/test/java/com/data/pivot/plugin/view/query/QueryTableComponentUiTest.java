@@ -101,6 +101,22 @@ public class QueryTableComponentUiTest extends DataPivotPlatformTestCase {
         assertSame(dialog.getRemoteSearchField().getTextEditor(), focused);
     }
 
+    public void testGetInstanceDoesNotQueryUntilRefresh() {
+        AtomicInteger remoteCalls = new AtomicInteger();
+        DatabaseQueryConfig config = UiTestFixtures.userAccountConfig();
+        QueryTableComponent dialog = QueryTableComponent.getInstance(getProject(), config, ignored -> {
+            remoteCalls.incrementAndGet();
+            return List.of();
+        });
+
+        assertEquals(0, remoteCalls.get());
+        assertEquals(0, dialog.getResultTableModel().getRowCount());
+
+        dialog.refreshFromDatabase();
+
+        assertEquals(1, remoteCalls.get());
+    }
+
     private QueryTableComponent createDialog(List<Map<String, Object>> rows, QueryRunner runner) {
         DatabaseQueryConfig config = UiTestFixtures.userAccountConfig();
         return new QueryTableComponent(getProject(), config, rows, runner);

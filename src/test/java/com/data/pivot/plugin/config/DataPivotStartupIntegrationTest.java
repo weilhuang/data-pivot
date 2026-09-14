@@ -31,6 +31,14 @@ public class DataPivotStartupIntegrationTest extends DataPivotPlatformTestCase {
         assertTrue(application.MAPPER.DEFAULT_STRATEGY_MAPPER.containsKey(DefaultStrategyType.HUMP_UNDERLINE.getCode()));
     }
 
+    public void testStartupDoesNotOpenJdbcConnections() {
+        DataPivotApplication application = DataPivotApplication.getInstance(getProject());
+        assertTrue("startup must not populate the leftover DriverManager connection map",
+                application.MAPPER.DR_DATABASE_CONNECTION_MAPPER.isEmpty());
+        com.data.pivot.plugin.tool.DatabaseUtil.closeConnections();
+        assertTrue(application.MAPPER.DR_DATABASE_CONNECTION_MAPPER.isEmpty());
+    }
+
     public void testPluginDescriptorDeclaresDatabaseAndStartupContracts() throws Exception {
         Document pluginXml = DocumentBuilderFactory.newInstance()
                 .newDocumentBuilder()
@@ -43,6 +51,7 @@ public class DataPivotStartupIntegrationTest extends DataPivotPlatformTestCase {
                 "com.data.pivot.plugin.context.DataPivotApplication");
         assertAttribute(pluginXml, "projectConfigurable", "instance",
                 "com.data.pivot.plugin.view.setting.DataPivotMappingSettingView");
+        assertAttribute(pluginXml, "notificationGroup", "id", "Data Pivot Messages");
         assertAttribute(pluginXml, "idea-plugin", "require-restart", "true");
         assertAction(pluginXml, "DataPivot.Query", "com.data.pivot.plugin.actions.DataPivotQueryAction", "alt Q");
         assertAction(pluginXml, "DataPivot.Analysis", "com.data.pivot.plugin.actions.DataPivotAnalysisAction", "alt A");

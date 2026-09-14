@@ -1,6 +1,5 @@
 package com.data.pivot.plugin.context;
 
-import com.data.pivot.plugin.config.trigger.DatabaseConnectionMapperTrigger;
 import com.data.pivot.plugin.config.trigger.DatabaseInfoMapperTrigger;
 import com.data.pivot.plugin.config.trigger.DatabaseReferenceMapperTrigger;
 import com.data.pivot.plugin.config.trigger.DatabaseUniqueIdMapperTrigger;
@@ -17,7 +16,7 @@ import java.util.List;
 
 public class DataPivotDatabaseInfoCacheContainer extends DataPivotCacheContainer<DataPivotDatabaseInfo> {
     public DataPivotDatabaseInfoCacheContainer() {
-        super(new DatabaseInfoMapperTrigger(),new DatabaseReferenceMapperTrigger(),new DatabaseConnectionMapperTrigger(),new DatabaseUniqueIdMapperTrigger());
+        super(new DatabaseInfoMapperTrigger(), new DatabaseReferenceMapperTrigger(), new DatabaseUniqueIdMapperTrigger());
     }
 
     @Override

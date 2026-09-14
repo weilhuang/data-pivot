@@ -3,8 +3,7 @@ package com.data.pivot.plugin.tool;
 import com.data.pivot.plugin.entity.DatabaseQueryConfig;
 import com.data.pivot.plugin.enums.DBType;
 import com.data.pivot.plugin.i18n.DataPivotBundle;
-import com.intellij.openapi.ui.Messages;
-import org.jetbrains.annotations.Nullable;
+import org.jetbrains.annotations.NotNull;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -14,7 +13,6 @@ import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.SQLTimeoutException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,6 +29,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class QueryTool {
 
     private static final int LIMIT = 20;
+    static final int ANALYSIS_DISTINCT_LIMIT = 20;
     private static final int QUERY_TIMEOUT = 5;
     private static final int MAX_CONNECTIONS = 10;
     private static final int VALIDATION_TIMEOUT = 2;
@@ -102,7 +101,11 @@ public class QueryTool {
         }
     }
 
-    public static @Nullable List<Map<String, Object>> query(DatabaseQueryConfig config) {
+    /**
+     * Executes a query. Failures throw {@link QueryFailedException} so callers can show
+     * status-bar / notification text instead of a modal dialog (which must not run off the EDT).
+     */
+    public static @NotNull List<Map<String, Object>> query(DatabaseQueryConfig config) {
         try {
             if (config.isDirectSqlQuery()) {
                 return executeSql(config);
@@ -118,20 +121,21 @@ public class QueryTool {
             } finally {
                 releaseConnection(config, connection);
             }
+        } catch (QueryFailedException failed) {
+            throw failed;
         } catch (SQLTimeoutException timeoutException) {
-            Messages.showErrorDialog(
+            throw new QueryFailedException(
                     DataPivotBundle.message("data.pivot.query.error.timeout", timeoutException.getMessage()),
-                    DataPivotBundle.message("data.pivot.query.error.title"));
+                    timeoutException);
         } catch (SQLException sqlException) {
-            Messages.showErrorDialog(
+            throw new QueryFailedException(
                     DataPivotBundle.message("data.pivot.query.error.sql", sqlException.getMessage()),
-                    DataPivotBundle.message("data.pivot.query.error.title"));
+                    sqlException);
         } catch (Exception exception) {
-            Messages.showErrorDialog(
+            throw new QueryFailedException(
                     DataPivotBundle.message("data.pivot.query.error.connection", exception.getMessage()),
-                    DataPivotBundle.message("data.pivot.query.error.title"));
+                    exception);
         }
-        return Collections.emptyList();
     }
 
     private static List<Map<String, Object>> executeSql(DatabaseQueryConfig config) throws Exception {
@@ -157,25 +161,85 @@ public class QueryTool {
             conditionClause = String.format(" WHERE %s LIKE ?", config.getConditionField());
         }
 
+        String table = unquotedTableRef(config);
         switch (config.getDbType()) {
             case MYSQL:
             case POSTGRES:
-                return String.format("SELECT %s FROM %s.%s%s LIMIT %d",
-                        columnList, config.getDbName(), config.getTableName(), conditionClause, LIMIT);
+                return String.format("SELECT %s FROM %s%s LIMIT %d",
+                        columnList, table, conditionClause, LIMIT);
             case ORACLE:
                 String oracleLimit = conditionClause.isEmpty() ? " WHERE ROWNUM <= " : " AND ROWNUM <= ";
-                return String.format("SELECT %s FROM %s.%s%s%s%d",
-                        columnList, config.getDbName(), config.getTableName(), conditionClause, oracleLimit, LIMIT);
+                return String.format("SELECT %s FROM %s%s%s%d",
+                        columnList, table, conditionClause, oracleLimit, LIMIT);
             case MSSQL:
-                if (config.getSchema() != null && !config.getSchema().isEmpty()) {
-                    return String.format("SELECT TOP %d %s FROM %s.%s.%s%s",
-                            LIMIT, columnList, config.getDbName(), config.getSchema(), config.getTableName(), conditionClause);
-                }
-                return String.format("SELECT TOP %d %s FROM %s..%s%s",
-                        LIMIT, columnList, config.getDbName(), config.getTableName(), conditionClause);
+                return String.format("SELECT TOP %d %s FROM %s%s",
+                        LIMIT, columnList, table, conditionClause);
             default:
                 throw new IllegalArgumentException("Unsupported DB type: " + config.getDbType());
         }
+    }
+
+    /**
+     * Value-distribution SQL for Analysis. Limits to {@link #ANALYSIS_DISTINCT_LIMIT} distinct
+     * values so the percentage subquery cannot scan unbounded large tables in the UI path.
+     */
+    public static String generateAnalysisSql(DatabaseQueryConfig config) {
+        DBType dbType = config.getDbType();
+        if (dbType == null || dbType == DBType.MONGO) {
+            throw new IllegalArgumentException("Unsupported DB type: " + dbType);
+        }
+        String table = quotedTableRef(config);
+        String column = quoteIdentifier(dbType, config.getConditionField());
+        int limit = ANALYSIS_DISTINCT_LIMIT;
+        String inner = String.format(
+                "SELECT %s, COUNT(*) AS rs_count, ROUND(COUNT(*) * 100.0 / NULLIF((SELECT COUNT(*) FROM %s), 0), 2) AS percentage FROM %s GROUP BY %s",
+                column, table, table, column);
+        return switch (dbType) {
+            case MYSQL, POSTGRES -> inner + " ORDER BY rs_count DESC, percentage DESC LIMIT " + limit;
+            case ORACLE -> "SELECT * FROM (" + inner + " ORDER BY COUNT(*) DESC) WHERE ROWNUM <= " + limit;
+            case MSSQL -> "SELECT TOP " + limit + " " + column
+                    + ", COUNT(*) AS rs_count, ROUND(COUNT(*) * 100.0 / NULLIF((SELECT COUNT(*) FROM "
+                    + table + "), 0), 2) AS percentage FROM " + table + " GROUP BY " + column
+                    + " ORDER BY COUNT(*) DESC";
+            default -> throw new IllegalArgumentException("Unsupported DB type: " + dbType);
+        };
+    }
+
+    static String unquotedTableRef(DatabaseQueryConfig config) {
+        if (config.getDbType() == DBType.MSSQL) {
+            if (config.getSchema() != null && !config.getSchema().isEmpty()) {
+                return config.getDbName() + "." + config.getSchema() + "." + config.getTableName();
+            }
+            return config.getDbName() + ".." + config.getTableName();
+        }
+        return config.getDbName() + "." + config.getTableName();
+    }
+
+    static String quotedTableRef(DatabaseQueryConfig config) {
+        DBType dbType = config.getDbType();
+        if (dbType == DBType.MSSQL) {
+            if (config.getSchema() != null && !config.getSchema().isEmpty()) {
+                return quoteIdentifier(dbType, config.getDbName()) + "."
+                        + quoteIdentifier(dbType, config.getSchema()) + "."
+                        + quoteIdentifier(dbType, config.getTableName());
+            }
+            return quoteIdentifier(dbType, config.getDbName()) + ".."
+                    + quoteIdentifier(dbType, config.getTableName());
+        }
+        return quoteIdentifier(dbType, config.getDbName()) + "."
+                + quoteIdentifier(dbType, config.getTableName());
+    }
+
+    static String quoteIdentifier(DBType dbType, String identifier) {
+        if (identifier == null || identifier.isEmpty()) {
+            return identifier;
+        }
+        return switch (dbType) {
+            case MYSQL -> "`" + identifier.replace("`", "``") + "`";
+            case POSTGRES, ORACLE -> "\"" + identifier.replace("\"", "\"\"") + "\"";
+            case MSSQL -> "[" + identifier.replace("]", "]]") + "]";
+            default -> identifier;
+        };
     }
 
     private static List<Map<String, Object>> executeQuery(Connection connection, String sql, String likeValue) throws SQLException {

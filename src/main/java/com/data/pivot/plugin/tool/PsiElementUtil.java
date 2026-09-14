@@ -83,6 +83,23 @@ public class PsiElementUtil {
         return dataPivotObject;
     }
 
+    public static @Nullable DataPivotMappingSettingInfo getMappingSetting(PsiClass psiClass) {
+        if (psiClass == null) {
+            return null;
+        }
+        Module moduleForFile = ModuleUtil.findModuleForPsiElement(psiClass);
+        if (moduleForFile == null) {
+            return null;
+        }
+        String qualifiedName = psiClass.getQualifiedName();
+        String packageName = qualifiedName == null ? null : StrUtil.subBefore(qualifiedName, ".", true);
+        if (StrUtil.isEmpty(packageName)) {
+            return null;
+        }
+        String packageReference = DataPivotUtil.createPackageReference(moduleForFile.getName(), packageName);
+        return DataPivotUtil.getObjectDataPivotSettingInfo(packageReference);
+    }
+
 
     public static List<PsiAnnotation> getAnnotationList(PsiModifierListOwner psiModifierListOwner){
         PsiModifierList modifierList = psiModifierListOwner.getModifierList();

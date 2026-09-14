@@ -17,6 +17,10 @@ import java.util.Map;
  */
 public class DatabaseUtil {
 
+    /**
+     * Legacy Statement query against the startup connection map. Unused by Query/Analysis
+     * ({@link QueryTool} owns pooled JDBC). Kept so dispose can still drain leftover entries.
+     */
     public static List<Map<String, Object>> executeQuery(String querySql,String databaseReference){
         List<Map<String, Object>> resultList = null;
         DataPivotDatabaseInfo dataPivotDatabaseInfo = DataPivotApplication.getInstance().MAPPER.DP_DR_DATABASE_MAPPER.get(databaseReference);
