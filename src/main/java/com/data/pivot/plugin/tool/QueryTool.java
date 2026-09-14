@@ -2,6 +2,7 @@ package com.data.pivot.plugin.tool;
 
 import com.data.pivot.plugin.entity.DatabaseQueryConfig;
 import com.data.pivot.plugin.enums.DBType;
+import com.data.pivot.plugin.i18n.DataPivotBundle;
 import com.intellij.openapi.ui.Messages;
 import org.jetbrains.annotations.Nullable;
 
@@ -118,11 +119,17 @@ public class QueryTool {
                 releaseConnection(config, connection);
             }
         } catch (SQLTimeoutException timeoutException) {
-            Messages.showErrorDialog("查询超时:\n\n" + timeoutException.getMessage(), "Query Data Error");
+            Messages.showErrorDialog(
+                    DataPivotBundle.message("data.pivot.query.error.timeout", timeoutException.getMessage()),
+                    DataPivotBundle.message("data.pivot.query.error.title"));
         } catch (SQLException sqlException) {
-            Messages.showErrorDialog("SQL错误:\n\n" + sqlException.getMessage(), "Query Data Error");
+            Messages.showErrorDialog(
+                    DataPivotBundle.message("data.pivot.query.error.sql", sqlException.getMessage()),
+                    DataPivotBundle.message("data.pivot.query.error.title"));
         } catch (Exception exception) {
-            Messages.showErrorDialog("数据库连接错误或未知错误,请检查 IDEA 数据源连接情况:\n\n" + exception.getMessage(), "Query Data Error");
+            Messages.showErrorDialog(
+                    DataPivotBundle.message("data.pivot.query.error.connection", exception.getMessage()),
+                    DataPivotBundle.message("data.pivot.query.error.title"));
         }
         return Collections.emptyList();
     }

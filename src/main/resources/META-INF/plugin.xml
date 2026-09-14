@@ -12,38 +12,30 @@
 
     <actions>
         <action id="DataPivot.Query" class="com.data.pivot.plugin.actions.DataPivotQueryAction"
-                text="Data Pivot Query"
-                icon="/icons/query.svg"
-                description="Data Pivot Query">
+                icon="/icons/query.svg">
             <keyboard-shortcut keymap="$default" first-keystroke="alt Q"/>
         </action>
         <action id="DataPivot.Analysis" class="com.data.pivot.plugin.actions.DataPivotAnalysisAction"
-                text="Data Pivot Analysis"
-                icon="/icons/analysis.svg"
-                description="Data Pivot Analysis">
+                icon="/icons/analysis.svg">
             <keyboard-shortcut keymap="$default" first-keystroke="alt A"/>
         </action>
-        <group id="DataPivot.Navigation" text="navigation" popup="false">
+        <group id="DataPivot.Navigation" popup="false">
             <action id="DataPivot.DataPivotORM" class="com.data.pivot.plugin.actions.ORMNavigationAction"
-                    icon="/icons/navigationORM.svg"
-                    text="Data Pivot ORM"
-                    description="Data Pivot ORM">
+                    icon="/icons/navigationORM.svg">
                 <keyboard-shortcut keymap="$default" first-keystroke="alt R"/>
             </action>
             <action id="DataPivot.DataPivotROM" class="com.data.pivot.plugin.actions.ROMNavigationAction"
-                    icon="/icons/navigationROM.svg"
-                    text="Data Pivot ROM"
-                    description="Data Pivot ROM">
+                    icon="/icons/navigationROM.svg">
                 <keyboard-shortcut keymap="$default" first-keystroke="alt O"/>
             </action>
         </group>
-        <group id="DataPivot.MainMenu" text="Data Pivot" popup="true" icon="AllIcons.General.Locate"
+        <group id="DataPivot.MainMenu" popup="true" icon="AllIcons.General.Locate"
                class="com.data.pivot.plugin.model.DataPivotBaseGroup">
-            <separator text="query"/>
+            <separator text="Query"/>
             <reference ref="DataPivot.Query"/>
-            <separator text="analysis"/>
+            <separator text="Analysis"/>
             <reference ref="DataPivot.Analysis"/>
-            <separator text="navigation"/>
+            <separator text="Navigation"/>
             <reference ref="DataPivot.Navigation"/>
             <add-to-group group-id="EditorPopupMenu" anchor="first"/>
             <add-to-group group-id="Console.TableResult.PopupGroup" anchor="first"/>

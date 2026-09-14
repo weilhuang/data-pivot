@@ -4,6 +4,17 @@
 
 ## [Unreleased]
 
+### Added
+- Query、Analysis 对话框与 Settings 页的现代化交互（DialogWrapper、SearchTextField、空态/状态栏、主题高亮、快捷键、可访问名称）。
+- Analysis 以字段值分布表替代 Lookup 弹层作为主界面，并支持复制 SQL / 选中值。
+- 扩展 `unitTest`、`integrationTest`、`ideaUiTest` 覆盖查询/分析/设置/导航展示与纯逻辑。
+- Gradle 任务 `verifyPluginFast`：只做插件结构校验，不下载额外 IDE。
+- CI 对齐 IntelliJ Platform Plugin Template：Build → Test（`check`）→ Verify → Release draft；失败时上传测试报告。跨平台 `ideaUiTest` 矩阵改为手动/每周定时，PR 仍在 ubuntu 上跑完整测试套件。
+
+### Changed
+- Settings 的 Apply 状态改为真实 `isModified()` / `reset()`，工作副本与缓存分离。
+- 动作文案、Query/Analysis 错误与装订线提示改为 i18n，并声明 `ActionUpdateThread.BGT`。
+
 ## [2.2.0] - 2026-06-06
 ### Added
 - 新增基于版本号的 GitHub Release 草稿流程，自动附加 `build/distributions` 中的插件 ZIP。

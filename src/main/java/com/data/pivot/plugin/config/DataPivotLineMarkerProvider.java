@@ -1,5 +1,6 @@
 package com.data.pivot.plugin.config;
 
+import com.data.pivot.plugin.i18n.DataPivotBundle;
 import com.intellij.codeInsight.daemon.LineMarkerInfo;
 import com.intellij.codeInsight.daemon.LineMarkerProvider;
 import com.intellij.database.model.DasColumn;
@@ -169,10 +170,12 @@ public class DataPivotLineMarkerProvider implements LineMarkerProvider {
                 navigationElement,
                 navigationElement.getTextRange(),
                 icon,
-                element -> "Navigate To DatabaseView",
+                element -> psiElement instanceof PsiField
+                        ? DataPivotBundle.message("data.pivot.gutter.navigate.column")
+                        : DataPivotBundle.message("data.pivot.gutter.navigate.table"),
                 (e, elt) -> DbNavigationUtils.navigateToDatabaseView(dbElement, true),
                 GutterIconRenderer.Alignment.RIGHT,
-                ()->"Data-Pivot Navigate Marker"
+                () -> DataPivotBundle.message("data.pivot.gutter.accessible")
         );
     }
 

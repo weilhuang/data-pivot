@@ -7,10 +7,13 @@ import com.intellij.notification.Notification;
 import com.intellij.notification.NotificationAction;
 import com.intellij.notification.NotificationType;
 import com.intellij.notification.Notifications;
+import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.editor.Editor;
+import com.intellij.openapi.options.ShowSettingsUtil;
 import com.intellij.openapi.ui.Messages;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 public class MessageUtil {
     /**
@@ -79,5 +82,24 @@ public class MessageUtil {
             Notifications.Bus.notify(notification, ProjectUtils.getCurrProject());
         }
 
+    }
+
+    public static void mappingError(@Nullable Editor editor, @NotNull String message) {
+        if (editor != null) {
+            Hint.error(editor, message);
+            return;
+        }
+        Notice.errorAction(message, openSettingsAction());
+    }
+
+    public static @NotNull NotificationAction openSettingsAction() {
+        return new NotificationAction(DataPivotBundle.message("data.pivot.notice.setting.null.action")) {
+            @Override
+            public void actionPerformed(@NotNull AnActionEvent e, @NotNull Notification notification) {
+                ShowSettingsUtil.getInstance().showSettingsDialog(
+                        e.getProject(), DataPivotConstants.DATA_PIVOT_MAIN_SETTING);
+                notification.expire();
+            }
+        };
     }
 }

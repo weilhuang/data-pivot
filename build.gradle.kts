@@ -134,6 +134,8 @@ tasks {
             "--add-opens=java.desktop/java.awt.event=ALL-UNNAMED",
             "--add-opens=java.desktop/javax.swing=ALL-UNNAMED",
             "--add-opens=java.desktop/javax.swing.plaf.basic=ALL-UNNAMED",
+            "--add-opens=java.desktop/javax.swing.text.html=ALL-UNNAMED",
+            "--add-opens=java.desktop/javax.swing.text.html.parser=ALL-UNNAMED",
             "--add-opens=java.desktop/sun.awt=ALL-UNNAMED",
             "--add-exports=java.base/jdk.internal.ref=ALL-UNNAMED",
             "--add-exports=java.base/sun.nio.ch=ALL-UNNAMED",
@@ -175,12 +177,12 @@ tasks {
     }
 
     register<Test>("unitTest") {
-        description = "Runs fast unit tests."
+        description = "Runs fast unit tests that do not boot the IntelliJ Platform UI."
         group = "verification"
         dependsOn("prepareTest")
         testClassesDirs = defaultTest.get().testClassesDirs
         classpath = defaultTest.get().classpath
-        include("**/tool/*Test.class")
+        exclude("**/*IntegrationTest.class", "**/*UiTest.class")
     }
 
     register<Test>("integrationTest") {
@@ -201,6 +203,12 @@ tasks {
         classpath = defaultTest.get().classpath
         systemProperty("idea.load.plugins", "false")
         include("**/*UiTest.class")
+    }
+
+    register("verifyPluginFast") {
+        group = "verification"
+        description = "Plugin structure and project configuration checks without Plugin Verifier extra IDEs."
+        dependsOn("verifyPluginStructure", "verifyPluginProjectConfiguration")
     }
 
     check {

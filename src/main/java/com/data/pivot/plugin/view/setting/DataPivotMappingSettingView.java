@@ -11,49 +11,72 @@ import com.data.pivot.plugin.tool.MessageUtil;
 import com.data.pivot.plugin.tool.ProjectUtils;
 import com.data.pivot.plugin.view.DataPivotTableColumn;
 import com.data.pivot.plugin.view.DataPivotTableView;
+import com.data.pivot.plugin.view.ui.DataPivotUi;
+import com.intellij.icons.AllIcons;
+import com.intellij.openapi.actionSystem.ActionUpdateThread;
+import com.intellij.openapi.actionSystem.AnAction;
+import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.options.Configurable;
+import com.intellij.openapi.project.DumbAwareAction;
+import com.intellij.ui.components.JBLabel;
+import com.intellij.util.ui.FormBuilder;
+import com.intellij.util.ui.JBUI;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import javax.swing.*;
-import java.awt.*;
-import java.util.ArrayList;
+import javax.swing.JComponent;
+import javax.swing.JPanel;
 import java.util.List;
 
 public class DataPivotMappingSettingView implements Configurable {
-    private final JPanel mainPanel;
+    private JPanel mainPanel;
     private DataPivotTableView<DataPivotMappingSettingInfo> tableComponent;
+    private List<DataPivotMappingSettingInfo> originalList;
+    private JBLabel descriptionLabel;
+    private JBLabel helpLabel;
 
-    public DataPivotMappingSettingView() {
-        this.mainPanel = new JPanel(new BorderLayout());
+    @Override
+    public String getDisplayName() {
+        return DataPivotConstants.DATA_PIVOT_MAIN_SETTING;
     }
-    private void initTable() {
-        JPanel jPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        JButton jButton = new JButton();
-        jButton.setText(DataPivotBundle.message("data.pivot.view.mapping.setting.refresh.title"));
-        jButton.addActionListener((e)->{
-            DataPivotInitializer.initDataPivotDatabaseInfo(ProjectUtils.getCurrProject());
-            DataPivotInitializer.initDataPivotRelation(ProjectUtils.getCurrProject());
-            MessageUtil.Dialog.info(DataPivotBundle.message("data.pivot.view.mapping.setting.refresh.content"));
-        });
-        jButton.setEnabled(true);
-        jButton.setVisible(true);
-        jPanel.add(jButton);
-        //可能由于版本问题无法监听刷新,所以提供手动刷新
-        this.mainPanel.add(jPanel,BorderLayout.NORTH);
-        List<DataPivotMappingSettingInfo> dataPivotMappingSettingInfoList =  new ArrayList<>();
-        dataPivotMappingSettingInfoList.addAll(DataPivotApplication.getInstance().CACHE.DP_MAPPING_SETTING_INFO_LIST_CACHE.get());
+
+    @Nullable
+    @Override
+    public String getHelpTopic() {
+        return getDisplayName();
+    }
+
+    @Override
+    public @Nullable JComponent createComponent() {
+        if (mainPanel == null) {
+            initPanel();
+        }
+        return mainPanel;
+    }
+
+    private void initPanel() {
+        List<DataPivotMappingSettingInfo> workingCopy = MappingSettingSupport.copyAll(
+                DataPivotApplication.getInstance().CACHE.DP_MAPPING_SETTING_INFO_LIST_CACHE.get());
+        this.originalList = MappingSettingSupport.copyAll(workingCopy);
         this.tableComponent = new DataPivotTableView<>(
                 ListUtil.of(
-                        new DataPivotTableColumn<>(DataPivotBundle.message("data.pivot.dialog.setting.module"), DataPivotMappingSettingInfo::getModelName, (data, value) -> data.setModelName((String) value)),
-                        new DataPivotTableColumn<>(DataPivotBundle.message("data.pivot.dialog.setting.package"), DataPivotMappingSettingInfo::getPackageName, (data, value) -> data.setPackageName((String) value)),
-                        new DataPivotTableColumn<>(DataPivotBundle.message("data.pivot.dialog.setting.database"), DataPivotMappingSettingInfo::getDatabasePath, (data, value) -> data.setDatabasePath((String) value)),
-                        new DataPivotTableColumn<>(DataPivotBundle.message("data.pivot.dialog.setting.strategy"), DataPivotMappingSettingInfo::getStrategyCode, (data, value) -> data.setStrategyCode((String) value))
+                        new DataPivotTableColumn<>(DataPivotBundle.message("data.pivot.dialog.setting.module"),
+                                DataPivotMappingSettingInfo::getModelName,
+                                (data, value) -> data.setModelName((String) value)),
+                        new DataPivotTableColumn<>(DataPivotBundle.message("data.pivot.dialog.setting.package"),
+                                DataPivotMappingSettingInfo::getPackageName,
+                                (data, value) -> data.setPackageName((String) value)),
+                        new DataPivotTableColumn<>(DataPivotBundle.message("data.pivot.dialog.setting.database"),
+                                DataPivotMappingSettingInfo::getDatabasePath,
+                                (data, value) -> data.setDatabasePath((String) value)),
+                        new DataPivotTableColumn<>(DataPivotBundle.message("data.pivot.dialog.setting.strategy"),
+                                DataPivotMappingSettingInfo::getStrategyCode,
+                                (data, value) -> data.setStrategyCode((String) value))
                 ),
-                dataPivotMappingSettingInfoList,
+                workingCopy,
                 DataPivotMappingSettingInfoView::new,
                 DataPivotMappingSettingInfo.class);
-        this.tableComponent.setCheckAddRow((dataList,data)->{
-            //允许一个数据库对应多个packageReference(取第一个),不允许一个packageReference对应多个db
+        this.tableComponent.setCheckAddRow((dataList, data) -> {
             if (StrUtil.isEmpty(data.getModelName())) {
                 MessageUtil.Dialog.info(DataPivotBundle.message("data.pivot.dialog.setting.module.null"));
                 return false;
@@ -71,45 +94,97 @@ public class DataPivotMappingSettingView implements Configurable {
                 return false;
             }
             String packageReference = data.getPackageReference();
-            for (DataPivotMappingSettingInfo dataPivotMappingSettingInfo : dataList) {
-                if (dataPivotMappingSettingInfo.getPackageReference().equals(packageReference)) {
-                    MessageUtil.Dialog.info(DataPivotBundle.message("data.pivot.dialog.setting.repeat",packageReference));
+            for (DataPivotMappingSettingInfo existing : dataList) {
+                if (existing.getPackageReference() != null && existing.getPackageReference().equals(packageReference)) {
+                    MessageUtil.Dialog.info(DataPivotBundle.message("data.pivot.dialog.setting.repeat", packageReference));
                     return false;
                 }
             }
             return true;
         });
-        this.mainPanel.add(this.tableComponent.createPanel(), BorderLayout.CENTER);
+
+        AnAction refreshAction = new DumbAwareAction(
+                DataPivotBundle.message("data.pivot.view.mapping.setting.refresh.title"),
+                DataPivotBundle.message("data.pivot.view.mapping.setting.refresh.description"),
+                AllIcons.Actions.Refresh) {
+            @Override
+            public void actionPerformed(@NotNull AnActionEvent e) {
+                refreshMetadata();
+            }
+
+            @Override
+            public @NotNull ActionUpdateThread getActionUpdateThread() {
+                return ActionUpdateThread.EDT;
+            }
+        };
+
+        descriptionLabel = DataPivotUi.comment(DataPivotBundle.message("data.pivot.view.mapping.setting.description"));
+        helpLabel = DataPivotUi.comment(DataPivotBundle.message("data.pivot.view.mapping.setting.help"));
+        this.tableComponent.getTable().getEmptyText()
+                .setText(DataPivotBundle.message("data.pivot.view.mapping.setting.empty"));
+        JComponent tablePanel = this.tableComponent.createPanel(refreshAction);
+        this.mainPanel = FormBuilder.createFormBuilder()
+                .addComponent(descriptionLabel)
+                .addComponentFillVertically(tablePanel, 8)
+                .addComponent(helpLabel, 8)
+                .getPanel();
+        this.mainPanel.setBorder(JBUI.Borders.empty(4, 0));
     }
 
-    private void initPanel() {
-        // 初始化表格
-        this.initTable();
+    void refreshMetadata() {
+        DataPivotInitializer.initDataPivotDatabaseInfo(ProjectUtils.getCurrProject());
+        DataPivotInitializer.initDataPivotRelation(ProjectUtils.getCurrProject());
+        MessageUtil.Dialog.info(DataPivotBundle.message("data.pivot.view.mapping.setting.refresh.content"));
     }
 
     @Override
-    public String getDisplayName() {
-        return DataPivotConstants.DATA_PIVOT_MAIN_SETTING;
-    }
-
-    @Nullable
-    @Override
-    public String getHelpTopic() {
-        return getDisplayName();
-    }
-
-    public @Nullable JComponent createComponent() {
-        this.initPanel();
-        return mainPanel;
-    }
     public boolean isModified() {
-        return true;
+        if (tableComponent == null) {
+            return false;
+        }
+        return !MappingSettingSupport.same(originalList, tableComponent.getDataList());
     }
 
+    @Override
     public void apply() {
-        new DataPivotMappingSettingInfo().save(this.tableComponent.getDataList());
-        DataPivotApplication.getInstance().CACHE.DP_MAPPING_SETTING_INFO_LIST_CACHE.update(this.tableComponent.getDataList());
+        if (tableComponent == null) {
+            return;
+        }
+        List<DataPivotMappingSettingInfo> current = MappingSettingSupport.copyAll(tableComponent.getDataList());
+        new DataPivotMappingSettingInfo().save(current);
+        DataPivotApplication.getInstance().CACHE.DP_MAPPING_SETTING_INFO_LIST_CACHE.update(current);
+        this.originalList = MappingSettingSupport.copyAll(current);
     }
 
+    @Override
+    public void reset() {
+        if (tableComponent == null) {
+            return;
+        }
+        List<DataPivotMappingSettingInfo> fromCache = MappingSettingSupport.copyAll(
+                DataPivotApplication.getInstance().CACHE.DP_MAPPING_SETTING_INFO_LIST_CACHE.get());
+        this.originalList = MappingSettingSupport.copyAll(fromCache);
+        this.tableComponent.reload(fromCache);
+    }
 
+    @Override
+    public void disposeUIResources() {
+        mainPanel = null;
+        tableComponent = null;
+        originalList = null;
+        descriptionLabel = null;
+        helpLabel = null;
+    }
+
+    DataPivotTableView<DataPivotMappingSettingInfo> getTableComponent() {
+        return tableComponent;
+    }
+
+    JBLabel getDescriptionLabel() {
+        return descriptionLabel;
+    }
+
+    JBLabel getHelpLabel() {
+        return helpLabel;
+    }
 }

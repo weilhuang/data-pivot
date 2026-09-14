@@ -187,9 +187,15 @@ If a data source driver has not been downloaded or configured in IDEA, data-pivo
 Use JDK 21 for local development.
 
 ```bash
-./gradlew unitTest integrationTest ideaUiTest
-./gradlew check buildPlugin
+./gradlew unitTest
+./gradlew integrationTest
+./gradlew ideaUiTest
+./gradlew check
+./gradlew verifyPluginFast
+./gradlew buildPlugin
 ```
+
+`check` runs `unitTest` + `integrationTest` + `ideaUiTest`. UX redesign, test pyramid, and CI notes: [doc/ux-redesign.md](doc/ux-redesign.md).
 
 The `integrationTest` and `ideaUiTest` tasks run against the IntelliJ Platform test framework with isolated IDEA test directories under `build/idea-test/`.
 
