@@ -88,7 +88,8 @@ public final class MappingResolver {
         }
         DataPivotMappingSettingInfo setting = tableHit.getSetting();
         if (setting != null && psiField != null) {
-            DataPivotStrategyInfo strategy = DataPivotApplication.getDataPivotStrategyInfo(setting.getStrategyCode());
+            DataPivotStrategyInfo strategy = DataPivotApplication.getDataPivotStrategyInfo(
+                    psiField.getProject(), setting.getStrategyCode());
             String columnName = DataPivotStrategyActuator.resolveColumnName(psiField, strategy);
             DbColumn named = findColumnByName(dbTable, columnName);
             if (named != null) {
@@ -128,9 +129,10 @@ public final class MappingResolver {
         DataPivotMappingSettingInfo setting = PsiElementUtil.getMappingSetting(psiClass);
         List<DbDataSource> dataSources = DbPsiFacade.getInstance(project).getDataSources();
         if (setting != null) {
-            DataPivotStrategyInfo strategy = DataPivotApplication.getDataPivotStrategyInfo(setting.getStrategyCode());
+            DataPivotStrategyInfo strategy = DataPivotApplication.getDataPivotStrategyInfo(
+                    project, setting.getStrategyCode());
             String tableName = DataPivotStrategyActuator.resolveTableName(psiClass, strategy);
-            DbTable named = findTableByName(dataSources, setting, tableName);
+            DbTable named = findTableByName(project, dataSources, setting, tableName);
             if (named != null) {
                 return new MappingHit(MappingConfidence.NAMING, named, null, setting);
             }
@@ -171,6 +173,7 @@ public final class MappingResolver {
     }
 
     private static @Nullable DbTable findTableByName(
+            @NotNull Project project,
             List<DbDataSource> dataSources,
             DataPivotMappingSettingInfo setting,
             @Nullable String tableName
@@ -179,7 +182,7 @@ public final class MappingResolver {
             return null;
         }
         for (DbDataSource dataSource : dataSources) {
-            if (!matchesDataSource(dataSource, setting) || !isJdbcDataSource(dataSource)) {
+            if (!matchesDataSource(dataSource, setting, project) || !isJdbcDataSource(dataSource)) {
                 continue;
             }
             for (DasTable dasTable : DasUtil.getTables(dataSource)) {
@@ -206,10 +209,18 @@ public final class MappingResolver {
     }
 
     static boolean matchesDataSource(@NotNull DbDataSource dataSource, @Nullable DataPivotMappingSettingInfo setting) {
+        return matchesDataSource(dataSource, setting, null);
+    }
+
+    static boolean matchesDataSource(
+            @NotNull DbDataSource dataSource,
+            @Nullable DataPivotMappingSettingInfo setting,
+            @Nullable Project project
+    ) {
         if (setting == null) {
             return true;
         }
-        String uniqueId = settingUniqueId(setting);
+        String uniqueId = settingUniqueId(project, setting);
         if (StrUtil.isEmpty(uniqueId)) {
             return true;
         }
@@ -236,13 +247,18 @@ public final class MappingResolver {
     }
 
     static @Nullable String settingUniqueId(@Nullable DataPivotMappingSettingInfo setting) {
+        return settingUniqueId(null, setting);
+    }
+
+    static @Nullable String settingUniqueId(@Nullable Project project, @Nullable DataPivotMappingSettingInfo setting) {
         if (setting == null) {
             return null;
         }
         String reference = setting.getDatabaseReference();
         if (StrUtil.isNotEmpty(reference)) {
             try {
-                DataPivotDatabaseInfo info = DataPivotApplication.getInstance().MAPPER.DP_DR_DATABASE_MAPPER.get(reference);
+                DataPivotDatabaseInfo info = DataPivotApplication.getInstance(project)
+                        .MAPPER.DP_DR_DATABASE_MAPPER.get(reference);
                 if (info != null && StrUtil.isNotEmpty(info.getUniqueId())) {
                     return info.getUniqueId();
                 }

@@ -4,6 +4,7 @@ import cn.hutool.core.util.StrUtil;
 import com.data.pivot.plugin.constants.DataPivotConstants;
 import com.data.pivot.plugin.context.DataPivotApplication;
 import com.data.pivot.plugin.entity.DataPivotMappingSettingInfo;
+import com.intellij.openapi.project.Project;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.HashMap;
@@ -57,7 +58,13 @@ public class DataPivotUtil {
     }
 
     public static @Nullable DataPivotMappingSettingInfo getObjectDataPivotSettingInfo(String packageReference) {
-        List<DataPivotMappingSettingInfo> dpSettingInfoListCache = DataPivotApplication.getInstance().CACHE.DP_MAPPING_SETTING_INFO_LIST_CACHE.get();
+        return getObjectDataPivotSettingInfo(null, packageReference);
+    }
+
+    public static @Nullable DataPivotMappingSettingInfo getObjectDataPivotSettingInfo(
+            @Nullable Project project, String packageReference) {
+        List<DataPivotMappingSettingInfo> dpSettingInfoListCache =
+                DataPivotApplication.getInstance(project).CACHE.DP_MAPPING_SETTING_INFO_LIST_CACHE.get();
         Map<String, DataPivotMappingSettingInfo> rs = new HashMap<>();
         for (DataPivotMappingSettingInfo dataPivotMappingSettingInfo : dpSettingInfoListCache) {
             if(compareReference(dataPivotMappingSettingInfo.getPackageReference(),packageReference)){
@@ -75,7 +82,13 @@ public class DataPivotUtil {
         return dataPivotSettingInfo.get();
     }
     public static @Nullable DataPivotMappingSettingInfo getRelationDataPivotSettingInfo(String databaseReference) {
-        List<DataPivotMappingSettingInfo> dpSettingInfoListCache = DataPivotApplication.getInstance().CACHE.DP_MAPPING_SETTING_INFO_LIST_CACHE.get();
+        return getRelationDataPivotSettingInfo(null, databaseReference);
+    }
+
+    public static @Nullable DataPivotMappingSettingInfo getRelationDataPivotSettingInfo(
+            @Nullable Project project, String databaseReference) {
+        List<DataPivotMappingSettingInfo> dpSettingInfoListCache =
+                DataPivotApplication.getInstance(project).CACHE.DP_MAPPING_SETTING_INFO_LIST_CACHE.get();
         Map<String, DataPivotMappingSettingInfo> rs = new HashMap<>();
         for (DataPivotMappingSettingInfo dataPivotMappingSettingInfo : dpSettingInfoListCache) {
             if(dataPivotMappingSettingInfo.getDatabaseReference().equals(databaseReference)){

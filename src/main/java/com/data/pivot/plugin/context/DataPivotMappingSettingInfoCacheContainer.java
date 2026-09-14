@@ -28,8 +28,10 @@ public class DataPivotMappingSettingInfoCacheContainer extends DataPivotCacheCon
         List<DataPivotMappingSettingInfo> query = new DataPivotMappingSettingInfo().query();
         List<DataPivotMappingSettingInfo> result = new ArrayList<>();
         //切换项目时 uuid 更新
-        Map<String, DataPivotDatabaseInfo> dpDrDatabaseMapper = DataPivotApplication.getInstance().MAPPER.DP_DR_DATABASE_MAPPER;
-        Map<String, DataPivotDatabaseInfo> dpDpDatabaseMapper = DataPivotApplication.getInstance().MAPPER.DP_DP_DATABASE_MAPPER;
+        Map<String, DataPivotDatabaseInfo> dpDrDatabaseMapper =
+                DataPivotApplication.getInstance(project).MAPPER.DP_DR_DATABASE_MAPPER;
+        Map<String, DataPivotDatabaseInfo> dpDpDatabaseMapper =
+                DataPivotApplication.getInstance(project).MAPPER.DP_DP_DATABASE_MAPPER;
         for (DataPivotMappingSettingInfo dataPivotMappingSettingInfo : query) {
             if (dpDrDatabaseMapper.get(dataPivotMappingSettingInfo.getDatabaseReference()) == null) {
                 DataPivotDatabaseInfo dataPivotDatabaseInfo = dpDpDatabaseMapper.get(dataPivotMappingSettingInfo.getDatabasePath());

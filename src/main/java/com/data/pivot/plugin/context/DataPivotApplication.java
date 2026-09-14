@@ -29,10 +29,17 @@ public class DataPivotApplication {
         this.MAPPER = new Mapper();
     }
     public static DataPivotApplication getInstance(){
-        return ServiceManager.getService(ProjectUtils.getCurrProject(), DataPivotApplication.class);
+        return getInstance(ProjectUtils.getCurrProject());
     }
+
+    /**
+     * Project-scoped service lookup. Mapping, gutter, and Query/Analysis must pass the
+     * {@code PsiElement}'s project rather than relying on the focused window.
+     * {@code null} falls back to {@link ProjectUtils#getCurrProject()} (Settings UI).
+     */
     public static DataPivotApplication getInstance(Project project){
-        return ServiceManager.getService(project, DataPivotApplication.class);
+        Project resolved = project != null ? project : ProjectUtils.getCurrProject();
+        return ServiceManager.getService(resolved, DataPivotApplication.class);
     }
 
     public Project getProject() {
@@ -64,7 +71,14 @@ public class DataPivotApplication {
     }
 
     public static DataPivotStrategyInfo getDataPivotStrategyInfo(String strategyCode) {
-        return DataPivotApplication.getInstance().MAPPER.DEFAULT_STRATEGY_MAPPER.get(strategyCode);
+        return getDataPivotStrategyInfo(ProjectUtils.getCurrProject(), strategyCode);
+    }
+
+    public static DataPivotStrategyInfo getDataPivotStrategyInfo(Project project, String strategyCode) {
+        if (strategyCode == null) {
+            return null;
+        }
+        return getInstance(project).MAPPER.DEFAULT_STRATEGY_MAPPER.get(strategyCode);
     }
 
 
