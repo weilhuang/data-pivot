@@ -9,171 +9,144 @@ import com.data.pivot.plugin.i18n.DataPivotBundle;
 import com.data.pivot.plugin.tool.DataPivotUtil;
 import com.data.pivot.plugin.tool.ProjectUtils;
 import com.data.pivot.plugin.view.DataPivotTableRowView;
+import com.data.pivot.plugin.view.ui.DataPivotUi;
+import com.intellij.icons.AllIcons;
 import com.intellij.ide.util.PackageChooserDialog;
 import com.intellij.openapi.module.Module;
 import com.intellij.openapi.module.ModuleManager;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.ui.ComboBox;
+import com.intellij.openapi.ui.ValidationInfo;
 import com.intellij.psi.PsiPackage;
+import com.intellij.ui.components.JBLabel;
+import com.intellij.ui.components.fields.ExtendableTextComponent;
+import com.intellij.ui.components.fields.ExtendableTextField;
+import com.intellij.util.ui.FormBuilder;
+import com.intellij.util.ui.JBUI;
 import org.jetbrains.annotations.Nullable;
 
-import javax.swing.*;
-import java.awt.GridBagConstraints;
-import java.awt.GridBagLayout;
-import java.awt.Insets;
+import javax.swing.JComponent;
+import javax.swing.JPanel;
+import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.stream.Collectors;
 
-public class DataPivotMappingSettingInfoView  extends DataPivotTableRowView<DataPivotMappingSettingInfo> {
-
-    /**
-     * 主面板
-     */
+public class DataPivotMappingSettingInfoView extends DataPivotTableRowView<DataPivotMappingSettingInfo> {
     private JPanel contentPane;
-    /**
-     * 模型下拉框
-     */
-    private JComboBox<String> moduleComboBox;
-    /**
-     * 模型下拉框
-     */
-    private JComboBox<String> databaseComboBox;
-    /**
-     * 包字段
-     */
-    private JTextField packageField;
-    /**
-     * 包选择按钮
-     */
-    private JButton packageChooseButton;
-    private JComboBox typeComboBox;
-    /**
-     * 项目对象
-     */
-    private Project project;
-    /**
-     * 当前项目中的module
-     */
+    private ComboBox<String> moduleComboBox;
+    private ComboBox<String> databaseComboBox;
+    private ExtendableTextField packageField;
+    private ComboBox<String> typeComboBox;
+    private JBLabel databaseEmptyHint;
+    private final Project project;
     private List<Module> moduleList;
     private List<DataPivotDatabaseInfo> databaseList;
     private List<DefaultStrategyType> typeList;
-
 
     @Override
     protected @Nullable JComponent createCenterPanel() {
         return this.contentPane;
     }
 
-    /**
-     * 构造方法
-     */
     public DataPivotMappingSettingInfoView() {
         super(ProjectUtils.getCurrProject());
         this.project = ProjectUtils.getCurrProject();
         this.contentPane = buildContentPane();
         this.initPanel();
-        this.initEvent();
-        super.init();
         setTitle(DataPivotBundle.message("data.pivot.view.mapping.setting.info.title"));
+        init();
     }
 
     private JPanel buildContentPane() {
-        JPanel panel = new JPanel(new GridBagLayout());
-        panel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        this.moduleComboBox = new ComboBox<>();
+        this.databaseComboBox = new ComboBox<>();
+        this.packageField = new ExtendableTextField();
+        this.packageField.addExtension(ExtendableTextComponent.Extension.create(
+                AllIcons.Nodes.Package,
+                DataPivotBundle.message("data.pivot.view.mapping.setting.info.choose"),
+                this::choosePackage));
+        this.packageField.getEmptyText().setText(DataPivotBundle.message("data.pivot.view.mapping.setting.info.package"));
+        this.typeComboBox = new ComboBox<>();
+        this.databaseEmptyHint = DataPivotUi.comment(
+                DataPivotBundle.message("data.pivot.view.mapping.setting.info.database.empty"));
+        this.databaseEmptyHint.setVisible(false);
 
-        this.moduleComboBox = new JComboBox<>();
-        this.databaseComboBox = new JComboBox<>();
-        this.packageField = new JTextField();
-        this.packageChooseButton = new JButton("choose");
-        this.typeComboBox = new JComboBox();
-
-        addRow(panel, 0, "module", moduleComboBox, null);
-        addRow(panel, 1, "package", packageField, packageChooseButton);
-        addRow(panel, 2, "database", databaseComboBox, null);
-        addRow(panel, 3, "type", typeComboBox, null);
+        JPanel panel = FormBuilder.createFormBuilder()
+                .addLabeledComponent(DataPivotBundle.message("data.pivot.view.mapping.setting.info.module"), moduleComboBox)
+                .addLabeledComponent(DataPivotBundle.message("data.pivot.view.mapping.setting.info.package"), packageField)
+                .addLabeledComponent(DataPivotBundle.message("data.pivot.view.mapping.setting.info.database"), databaseComboBox)
+                .addComponent(databaseEmptyHint)
+                .addLabeledComponent(DataPivotBundle.message("data.pivot.view.mapping.setting.info.strategy"), typeComboBox)
+                .getPanel();
+        panel.setBorder(JBUI.Borders.empty(8));
         return panel;
     }
 
-    private static void addRow(JPanel panel, int row, String labelText, JComponent field, JButton button) {
-        GridBagConstraints labelConstraints = new GridBagConstraints();
-        labelConstraints.gridx = 0;
-        labelConstraints.gridy = row;
-        labelConstraints.anchor = GridBagConstraints.WEST;
-        labelConstraints.insets = new Insets(4, 0, 4, 8);
-        panel.add(new JLabel(labelText), labelConstraints);
-
-        GridBagConstraints fieldConstraints = new GridBagConstraints();
-        fieldConstraints.gridx = 1;
-        fieldConstraints.gridy = row;
-        fieldConstraints.weightx = 1.0;
-        fieldConstraints.fill = GridBagConstraints.HORIZONTAL;
-        fieldConstraints.insets = new Insets(4, 0, 4, button == null ? 0 : 8);
-        panel.add(field, fieldConstraints);
-
-        if (button != null) {
-            GridBagConstraints buttonConstraints = new GridBagConstraints();
-            buttonConstraints.gridx = 2;
-            buttonConstraints.gridy = row;
-            buttonConstraints.fill = GridBagConstraints.HORIZONTAL;
-            buttonConstraints.insets = new Insets(4, 0, 4, 0);
-            panel.add(button, buttonConstraints);
+    private void choosePackage() {
+        PackageChooserDialog dialog = new PackageChooserDialog(
+                DataPivotBundle.message("data.pivot.view.mapping.setting.info.package"), project);
+        dialog.show();
+        PsiPackage psiPackage = dialog.getSelectedPackage();
+        if (psiPackage != null) {
+            packageField.setText(psiPackage.getQualifiedName());
         }
     }
 
-    public void initDatabaseComponent(){
-        this.databaseList = DataPivotApplication.getInstance().CACHE.DP_DB_INFO_LIST_CACHE.get().stream().collect(Collectors.toList());
+    public void initDatabaseComponent() {
+        this.databaseList = new ArrayList<>(DataPivotApplication.getInstance().CACHE.DP_DB_INFO_LIST_CACHE.get());
         databaseComboBox.removeAllItems();
         for (DataPivotDatabaseInfo dataPivotDatabaseInfo : databaseList) {
             databaseComboBox.addItem(dataPivotDatabaseInfo.getDatabasePath());
         }
-    }
-
-    private void initEvent() {
-        //监听module选择事件
-        databaseComboBox.addActionListener(e -> {
-            // 刷新路径
-            //refreshItem();
-        });
-        packageChooseButton.addActionListener(e -> {
-            PackageChooserDialog dialog = new PackageChooserDialog("Package Chooser", project);
-            dialog.show();
-            PsiPackage psiPackage = dialog.getSelectedPackage();
-            if (psiPackage != null) {
-                packageField.setText(psiPackage.getQualifiedName());
-            }
-        });
+        boolean empty = databaseList.isEmpty();
+        databaseEmptyHint.setVisible(empty);
+        databaseComboBox.setEnabled(!empty);
     }
 
     @Override
-    protected void doOKAction() {
-        super.doOKAction();
+    protected @Nullable ValidationInfo doValidate() {
+        if (getSelectModule() == null) {
+            return new ValidationInfo(DataPivotBundle.message("data.pivot.dialog.setting.module.null"), moduleComboBox);
+        }
+        if (StrUtil.isEmpty(packageField.getText())) {
+            return new ValidationInfo(DataPivotBundle.message("data.pivot.dialog.setting.package.null"), packageField);
+        }
+        if (getSelectDatabase() == null) {
+            return new ValidationInfo(DataPivotBundle.message("data.pivot.dialog.setting.database.null"), databaseComboBox);
+        }
+        if (getSelectType() == null) {
+            return new ValidationInfo(DataPivotBundle.message("data.pivot.dialog.setting.strategy.null"), typeComboBox);
+        }
+        return null;
     }
 
+    @Override
     public DataPivotMappingSettingInfo getValue() {
         DataPivotMappingSettingInfo dataPivotMappingSettingInfo = new DataPivotMappingSettingInfo();
         Module selectModule = getSelectModule();
+        DataPivotDatabaseInfo selectDatabase = getSelectDatabase();
+        DefaultStrategyType selectType = getSelectType();
+        if (selectModule == null || selectDatabase == null || selectType == null) {
+            return dataPivotMappingSettingInfo;
+        }
         dataPivotMappingSettingInfo.setModelName(selectModule.getName());
         dataPivotMappingSettingInfo.setPackageName(packageField.getText());
-        DataPivotDatabaseInfo selectDatabase = getSelectDatabase();
         dataPivotMappingSettingInfo.setDataSourceName(selectDatabase.getDataSourceName());
         dataPivotMappingSettingInfo.setDatabaseName(selectDatabase.getDatabaseName());
         dataPivotMappingSettingInfo.setDatabasePath(selectDatabase.getDatabasePath());
-        dataPivotMappingSettingInfo.setStrategyCode(getSelectType().getCode());
+        dataPivotMappingSettingInfo.setStrategyCode(selectType.getCode());
         dataPivotMappingSettingInfo.setDatabaseReference(selectDatabase.getDatabaseReference());
-        dataPivotMappingSettingInfo.setPackageReference(DataPivotUtil.createPackageReference(selectModule.getName(),packageField.getText()));
+        dataPivotMappingSettingInfo.setPackageReference(
+                DataPivotUtil.createPackageReference(selectModule.getName(), packageField.getText()));
         return dataPivotMappingSettingInfo;
     }
 
-    /**
-     * 初始化方法
-     */
     private void initPanel() {
-        // 初始化module，存在资源路径的排前面
         this.moduleList = new LinkedList<>();
         for (Module module : ModuleManager.getInstance(project).getModules()) {
             this.moduleList.add(module);
         }
-        //初始化Module选择
         for (Module module : this.moduleList) {
             moduleComboBox.addItem(module.getName());
         }
@@ -184,11 +157,6 @@ public class DataPivotMappingSettingInfoView  extends DataPivotTableRowView<Data
         }
     }
 
-    /**
-     * 获取选中的Module
-     *
-     * @return 选中的Module
-     */
     private Module getSelectModule() {
         String name = (String) moduleComboBox.getSelectedItem();
         if (StrUtil.isEmpty(name)) {
@@ -196,27 +164,52 @@ public class DataPivotMappingSettingInfoView  extends DataPivotTableRowView<Data
         }
         return ModuleManager.getInstance(project).findModuleByName(name);
     }
+
     private DataPivotDatabaseInfo getSelectDatabase() {
         String name = (String) databaseComboBox.getSelectedItem();
-        if (StrUtil.isEmpty(name)) {
+        if (StrUtil.isEmpty(name) || databaseList == null) {
             return null;
         }
-        List<DataPivotDatabaseInfo> collect = databaseList.stream().filter(bean -> bean.getDatabasePath().equals(name)).collect(Collectors.toList());
-        if (collect.isEmpty()) {
-            return null;
-        }
-        return collect.get(0);
-    }
-    private DefaultStrategyType getSelectType() {
-        String name = (String) typeComboBox.getSelectedItem();
-        if (StrUtil.isEmpty(name)) {
-            return null;
-        }
-        List<DefaultStrategyType> collect = typeList.stream().filter(bean -> bean.getCode().equals(name)).collect(Collectors.toList());
+        List<DataPivotDatabaseInfo> collect = databaseList.stream()
+                .filter(bean -> bean.getDatabasePath().equals(name))
+                .collect(Collectors.toList());
         if (collect.isEmpty()) {
             return null;
         }
         return collect.get(0);
     }
 
+    private DefaultStrategyType getSelectType() {
+        String name = (String) typeComboBox.getSelectedItem();
+        if (StrUtil.isEmpty(name) || typeList == null) {
+            return null;
+        }
+        List<DefaultStrategyType> collect = typeList.stream()
+                .filter(bean -> bean.getCode().equals(name))
+                .collect(Collectors.toList());
+        if (collect.isEmpty()) {
+            return null;
+        }
+        return collect.get(0);
+    }
+
+    ComboBox<String> getModuleComboBox() {
+        return moduleComboBox;
+    }
+
+    ComboBox<String> getDatabaseComboBox() {
+        return databaseComboBox;
+    }
+
+    ExtendableTextField getPackageField() {
+        return packageField;
+    }
+
+    ComboBox<String> getTypeComboBox() {
+        return typeComboBox;
+    }
+
+    JBLabel getDatabaseEmptyHint() {
+        return databaseEmptyHint;
+    }
 }

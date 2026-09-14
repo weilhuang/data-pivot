@@ -8,6 +8,7 @@ import com.data.pivot.plugin.model.DataPivotRelation;
 import com.data.pivot.plugin.tool.MessageUtil;
 import com.data.pivot.plugin.tool.PsiElementUtil;
 import com.intellij.database.view.DatabaseView;
+import com.intellij.openapi.actionSystem.ActionUpdateThread;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
 import com.intellij.psi.PsiElement;
@@ -20,12 +21,11 @@ public class ORMNavigationAction extends BaseAnAction {
     protected void action(AnActionEvent e) {
         DataPivotObject dataPivotObject = PsiElementUtil.getDataPivotObject(e.getData(CommonDataKeys.PSI_ELEMENT));
         if (dataPivotObject.getDataPivotMappingSettingInfo() == null) {
-            MessageUtil.Hint.error(editor,
-                    DataPivotBundle.message("data.pivot.hint.object.mapping.null",
-                            dataPivotObject.getPackageReference()));
+            MessageUtil.mappingError(editor, DataPivotBundle.message(
+                    "data.pivot.hint.object.mapping.null", dataPivotObject.getPackageReference()));
             return;
         }
-        DataPivotRelation dataPivotRelation = DataPivotApplication.ormMapping(dataPivotObject,editor);
+        DataPivotRelation dataPivotRelation = DataPivotApplication.ormMapping(dataPivotObject, editor);
         if (dataPivotRelation == null) {
             return;
         }
@@ -33,14 +33,12 @@ public class ORMNavigationAction extends BaseAnAction {
     }
 
     @Override
-    public void update(@NotNull AnActionEvent e) {
-        PsiElement psiElement = e.getData(CommonDataKeys.PSI_ELEMENT);
-        if (psiElement!=null&&psiElement instanceof PsiField){
-            //启用
-            e.getPresentation().setEnabled(true);
-        }else {
-            e.getPresentation().setEnabled(false);
-        }
+    public @NotNull ActionUpdateThread getActionUpdateThread() {
+        return ActionUpdateThread.BGT;
+    }
 
+    @Override
+    public void update(@NotNull AnActionEvent e) {
+        e.getPresentation().setEnabled(e.getData(CommonDataKeys.PSI_ELEMENT) instanceof PsiField);
     }
 }

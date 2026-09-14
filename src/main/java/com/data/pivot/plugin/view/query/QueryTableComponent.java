@@ -3,217 +3,290 @@ package com.data.pivot.plugin.view.query;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONUtil;
 import com.data.pivot.plugin.entity.DatabaseQueryConfig;
+import com.data.pivot.plugin.i18n.DataPivotBundle;
 import com.data.pivot.plugin.tool.QueryTool;
-import com.intellij.openapi.Disposable;
+import com.data.pivot.plugin.view.ui.DataPivotUi;
+import com.intellij.openapi.actionSystem.AnActionEvent;
+import com.intellij.openapi.actionSystem.CommonShortcuts;
+import com.intellij.openapi.actionSystem.CustomShortcutSet;
+import com.intellij.openapi.project.DumbAwareAction;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.ui.Messages;
-import com.intellij.ui.IconManager;
-import com.intellij.ui.JBColor;
+import com.intellij.openapi.ui.DialogWrapper;
+import com.intellij.openapi.util.SystemInfo;
+import com.intellij.ui.DocumentAdapter;
+import com.intellij.ui.SearchTextField;
+import com.intellij.ui.components.JBLabel;
 import com.intellij.ui.components.JBScrollPane;
 import com.intellij.ui.table.JBTable;
+import com.intellij.util.Alarm;
+import com.intellij.util.ui.FormBuilder;
+import com.intellij.util.ui.JBUI;
 import kotlin.Pair;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import javax.swing.*;
+import javax.swing.Action;
+import javax.swing.JComponent;
+import javax.swing.JPanel;
+import javax.swing.JTable;
+import javax.swing.KeyStroke;
 import javax.swing.event.DocumentEvent;
-import javax.swing.event.DocumentListener;
 import javax.swing.table.AbstractTableModel;
 import javax.swing.table.DefaultTableCellRenderer;
-import java.awt.*;
-import java.awt.datatransfer.StringSelection;
-import java.awt.event.FocusAdapter;
-import java.awt.event.FocusEvent;
+import java.awt.Component;
+import java.awt.Dimension;
+import java.awt.event.InputEvent;
+import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.Timer;
-import java.util.TimerTask;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Collectors;
 
-public class QueryTableComponent extends JDialog implements Disposable {
-    private final Icon icon = IconManager.getInstance().getIcon("/icons/query.svg", QueryTableComponent.class);
+public class QueryTableComponent extends DialogWrapper {
+    private static final int SEARCH_DEBOUNCE_MS = 300;
 
-    private DatabaseQueryConfig databaseQueryConfig; // 查询配置
-    private final JBTable queryResultTable; // 显示查询结果的表格
-    private final ResultTableModel resultTableModel; // 表格模型
-    private List<QueryTableRow> queryTableRows; // 所有查询结果的数据行
-    private JTextField localSearchTextField; // 本地搜索输入框
-    private JTextField remoteSearchTextField; // 远程搜索输入框
-    private Timer remoteDebounceTimer; // 远程搜索防抖动计时器
-    private Timer localDebounceTimer; // 本地搜索防抖动计时器
-    private QueryTableRow selectedQueryTableRow; // 选中的行数据
+    private final DatabaseQueryConfig databaseQueryConfig;
+    private final QueryRunner queryRunner;
+    private final Alarm remoteSearchAlarm;
+    private final Alarm localSearchAlarm;
 
-    private static final Color HIGHLIGHT_COLOR = new Color(255, 255, 0); // 高亮颜色
-    private static final int DEFAULT_ROW_HEIGHT = 20; // 默认行高
-    private static final String LOCAL_SEARCH_PLACEHOLDER = "本地搜索";
-    private static final String REMOTE_SEARCH_PLACEHOLDER = "远程搜索";
+    private JBTable queryResultTable;
+    private ResultTableModel resultTableModel;
+    private SearchTextField localSearchField;
+    private SearchTextField remoteSearchField;
+    private JBLabel statusLabel;
+    private JBLabel hintLabel;
+    private final List<Pair<Integer, Integer>> highlightedCells = new ArrayList<>();
+    private String lastCopiedText = "";
 
-    private List<Pair<Integer, Integer>> highlightedCells = new ArrayList<>();
+    public QueryTableComponent(@Nullable Project project,
+                               @NotNull DatabaseQueryConfig databaseQueryConfig,
+                               @NotNull List<Map<String, Object>> queryResults) {
+        this(project, databaseQueryConfig, queryResults, QueryTool::query);
+    }
 
-    public QueryTableComponent(Project project, DatabaseQueryConfig databaseQueryConfig, @NotNull List<Map<String, Object>> queryResults) {
-        super((Dialog) null, false); // 不影响其他操作
-        toFront(); // 设置为悬浮在最前面
+    public QueryTableComponent(@Nullable Project project,
+                               @NotNull DatabaseQueryConfig databaseQueryConfig,
+                               @NotNull List<Map<String, Object>> queryResults,
+                               @NotNull QueryRunner queryRunner) {
+        super(project, false);
         this.databaseQueryConfig = databaseQueryConfig;
-        setTitle("Data-Pivot Query: 映射数据表: " + databaseQueryConfig.getTableName() + ", 条件字段: " + databaseQueryConfig.getConditionField());
-        setSize(new Dimension(850, 450));
-        setLocationRelativeTo(null);
-        Set<String> columnNamesSet = queryResults.get(0).keySet();
-        String[] columnNames = columnNamesSet.toArray(new String[0]);
-        queryTableRows = queryResults.stream()
-                .map(result -> new QueryTableRow(result, columnNamesSet))
-                .collect(Collectors.toCollection(CopyOnWriteArrayList::new));
-        resultTableModel = new ResultTableModel(queryTableRows, columnNames);
-        queryResultTable = new JBTable(resultTableModel);
-        queryResultTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        queryResultTable.setFillsViewportHeight(true);
-        queryResultTable.setRowHeight(DEFAULT_ROW_HEIGHT); // 设置每行的高度
-        queryResultTable.setPreferredScrollableViewportSize(new Dimension(queryResultTable.getPreferredSize().width, queryResultTable.getRowHeight() * 20)); // 设置表格高度为20行
+        this.queryRunner = queryRunner;
+        this.remoteSearchAlarm = new Alarm(Alarm.ThreadToUse.SWING_THREAD, getDisposable());
+        this.localSearchAlarm = new Alarm(Alarm.ThreadToUse.SWING_THREAD, getDisposable());
+        initModel(queryResults);
+        setTitle(DataPivotBundle.message(
+                "data.pivot.query.title.detail",
+                nullToEmpty(databaseQueryConfig.getTableName()),
+                nullToEmpty(databaseQueryConfig.getConditionField())));
+        setModal(false);
+        setOKButtonText(DataPivotBundle.message("data.pivot.dialog.close"));
+        init();
+        setSize(JBUI.scale(900), JBUI.scale(520));
+    }
 
-        // 允许双击复制表格内容
+    public static @NotNull QueryTableComponent getInstance(@Nullable Project project,
+                                                           @NotNull DatabaseQueryConfig databaseQueryConfig) {
+        return getInstance(project, databaseQueryConfig, QueryTool::query);
+    }
+
+    public static @NotNull QueryTableComponent getInstance(@Nullable Project project,
+                                                           @NotNull DatabaseQueryConfig databaseQueryConfig,
+                                                           @NotNull QueryRunner queryRunner) {
+        List<Map<String, Object>> queryResults = queryRunner.query(databaseQueryConfig);
+        if (queryResults == null) {
+            queryResults = List.of();
+        }
+        return new QueryTableComponent(project, databaseQueryConfig, queryResults, queryRunner);
+    }
+
+    private void initModel(@NotNull List<Map<String, Object>> queryResults) {
+        String[] columnNames = resolveColumnNames(queryResults);
+        List<QueryTableRow> rows = toRows(queryResults, columnNames);
+        this.resultTableModel = new ResultTableModel(rows, columnNames);
+    }
+
+    @Override
+    protected @NotNull JComponent createCenterPanel() {
+        queryResultTable = new JBTable(resultTableModel);
+        DataPivotUi.configureTable(queryResultTable, DataPivotBundle.message("data.pivot.query.empty"));
+        queryResultTable.setDefaultRenderer(Object.class, new HighlightRenderer());
+        DataPivotUi.applyFixedColumnWidths(queryResultTable);
         queryResultTable.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
                 if (e.getClickCount() == 2) {
-                    int selectedRow = queryResultTable.getSelectedRow();
-                    if (selectedRow != -1) {
-                        selectedQueryTableRow = resultTableModel.getQueryTableRow(selectedRow);
-                        handleRowSelection(selectedQueryTableRow);
-                    }
+                    copySelectedRow();
                 }
             }
         });
 
-        // 设置表格默认宽度并支持横向滚动
-        queryResultTable.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
-        for (int i = 0; i < queryResultTable.getColumnModel().getColumnCount(); i++) {
-            queryResultTable.getColumnModel().getColumn(i).setPreferredWidth(100); // 默认宽度
-        }
+        remoteSearchField = DataPivotUi.searchField(
+                DataPivotBundle.message("data.pivot.query.remote.search"),
+                DataPivotBundle.message("data.pivot.query.remote.search.placeholder"),
+                DataPivotBundle.message("data.pivot.query.remote.search.tooltip"));
+        localSearchField = DataPivotUi.searchField(
+                DataPivotBundle.message("data.pivot.query.local.search"),
+                DataPivotBundle.message("data.pivot.query.local.search.placeholder"),
+                DataPivotBundle.message("data.pivot.query.local.search.tooltip"));
 
-        // 设置单元格渲染器
-        queryResultTable.setDefaultRenderer(Object.class, new HighlightRenderer());
-        initComponents();
-    }
-
-    private void initComponents() {
-        localSearchTextField = new JTextField();
-        remoteSearchTextField = new JTextField();
-        localSearchTextField.setToolTipText("本地搜索: 搜索表格数据");
-        remoteSearchTextField.setToolTipText("远程搜索: 搜索数据库数据");
-        addSearchFieldListeners(localSearchTextField, LOCAL_SEARCH_PLACEHOLDER);
-        addSearchFieldListeners(remoteSearchTextField, REMOTE_SEARCH_PLACEHOLDER);
-        localSearchTextField.getDocument().addDocumentListener(new DocumentListener() {
+        localSearchField.getTextEditor().getDocument().addDocumentListener(new DocumentAdapter() {
             @Override
-            public void insertUpdate(DocumentEvent e) {
-                handleLocalSearchInputWithDebounce();
+            protected void textChanged(@NotNull DocumentEvent e) {
+                scheduleLocalSearch();
             }
-
+        });
+        remoteSearchField.getTextEditor().getDocument().addDocumentListener(new DocumentAdapter() {
             @Override
-            public void removeUpdate(DocumentEvent e) {
-                handleLocalSearchInputWithDebounce();
-            }
-
-            @Override
-            public void changedUpdate(DocumentEvent e) {
-                handleLocalSearchInputWithDebounce();
+            protected void textChanged(@NotNull DocumentEvent e) {
+                scheduleRemoteSearch();
             }
         });
 
-        remoteSearchTextField.getDocument().addDocumentListener(new DocumentListener() {
-            @Override
-            public void insertUpdate(DocumentEvent e) {
-                handleRemoteSearchInput();
-            }
+        statusLabel = DataPivotUi.status(statusText());
+        hintLabel = DataPivotUi.comment(DataPivotBundle.message("data.pivot.query.hint"));
 
-            @Override
-            public void removeUpdate(DocumentEvent e) {
-                handleRemoteSearchInput();
-            }
+        JPanel searchPanel = FormBuilder.createFormBuilder()
+                .addLabeledComponent(DataPivotBundle.message("data.pivot.query.remote.search"), remoteSearchField)
+                .addLabeledComponent(DataPivotBundle.message("data.pivot.query.local.search"), localSearchField)
+                .getPanel();
 
-            @Override
-            public void changedUpdate(DocumentEvent e) {
-                handleRemoteSearchInput();
-            }
-        });
-
-        JPanel searchPanel = new JPanel(new GridLayout(2, 1));
-        searchPanel.add(remoteSearchTextField);
-        searchPanel.add(localSearchTextField);
-
-        JPanel mainPanel = new JPanel(new BorderLayout());
-        mainPanel.add(searchPanel, BorderLayout.NORTH);
-        mainPanel.add(new JBScrollPane(queryResultTable), BorderLayout.CENTER);
-
-        getContentPane().add(mainPanel);
+        JPanel panel = FormBuilder.createFormBuilder()
+                .addComponent(searchPanel)
+                .addComponentFillVertically(new JBScrollPane(queryResultTable), 8)
+                .addComponent(statusLabel, 8)
+                .addComponent(hintLabel, 4)
+                .getPanel();
+        panel.setPreferredSize(new Dimension(JBUI.scale(880), JBUI.scale(460)));
+        installShortcuts(panel);
+        refreshStatus();
+        return panel;
     }
 
-    private void addSearchFieldListeners(JTextField textField, String placeholder) {
-        textField.setText(placeholder);
-        textField.setForeground(JBColor.GRAY);
-        textField.addFocusListener(new FocusAdapter() {
-            @Override
-            public void focusGained(FocusEvent e) {
-                if (textField.getText().equals(placeholder)) {
-                    textField.setText("");
-                    textField.setForeground(JBColor.BLACK);
-                }
-            }
-
-            @Override
-            public void focusLost(FocusEvent e) {
-                clearHighlights();
-                if (textField.getText().isEmpty()) {
-                    textField.setText(placeholder);
-                    textField.setForeground(JBColor.GRAY);
-                }
-            }
-        });
-    }
-
-    public static @Nullable QueryTableComponent getInstance(Project project, DatabaseQueryConfig databaseQueryConfig) {
-        List<Map<String, Object>> queryResults = QueryTool.query(databaseQueryConfig);
-        if (queryResults == null) {
-            return null;
+    @Override
+    protected @Nullable JComponent createSouthPanel() {
+        JComponent south = super.createSouthPanel();
+        if (south != null) {
+            south.setBorder(JBUI.Borders.emptyTop(8));
         }
-        if (queryResults.isEmpty()){
-            Messages.showMessageDialog("查询数据为空", "Query Data Result",null);
-            return null;
-        }
-        return new QueryTableComponent(project, databaseQueryConfig, queryResults);
+        return south;
     }
 
-    private void handleLocalSearchInputWithDebounce() {
-        if (localDebounceTimer != null) {
-            localDebounceTimer.cancel();
-        }
-        localDebounceTimer = new Timer();
-        localDebounceTimer.schedule(new TimerTask() {
+    @Override
+    protected Action @NotNull [] createActions() {
+        return new Action[]{getOKAction()};
+    }
+
+    @Override
+    protected Action @NotNull [] createLeftSideActions() {
+        return new Action[]{new DialogWrapperAction(DataPivotBundle.message("data.pivot.query.copy.row")) {
             @Override
-            public void run() {
-                SwingUtilities.invokeLater(QueryTableComponent.this::handleLocalSearchInput);
+            protected void doAction(java.awt.event.ActionEvent e) {
+                copySelectedRow();
             }
-        }, 300); // 300毫秒延迟
+        }};
     }
 
-    private void handleLocalSearchInput() {
-        String searchFieldText = localSearchTextField.getText();
-        if (StrUtil.isEmpty(searchFieldText) || LOCAL_SEARCH_PLACEHOLDER.equals(searchFieldText)) {
-            clearHighlights();
+    @Override
+    public @Nullable JComponent getPreferredFocusedComponent() {
+        return remoteSearchField == null ? null : remoteSearchField.getTextEditor();
+    }
+
+    @Override
+    protected @Nullable String getDimensionServiceKey() {
+        return "data-pivot.query.dialog";
+    }
+
+    private void installShortcuts(@NotNull JComponent panel) {
+        // HeadlessToolkit.getMenuShortcutKeyMaskEx() throws HeadlessException (CI ubuntu).
+        int menuMask = SystemInfo.isMac ? InputEvent.META_DOWN_MASK : InputEvent.CTRL_DOWN_MASK;
+        new DumbAwareAction() {
+            @Override
+            public void actionPerformed(@NotNull AnActionEvent e) {
+                localSearchField.getTextEditor().requestFocusInWindow();
+            }
+        }.registerCustomShortcutSet(new CustomShortcutSet(KeyStroke.getKeyStroke(KeyEvent.VK_F, menuMask)), panel);
+
+        new DumbAwareAction() {
+            @Override
+            public void actionPerformed(@NotNull AnActionEvent e) {
+                remoteSearchField.getTextEditor().requestFocusInWindow();
+            }
+        }.registerCustomShortcutSet(
+                new CustomShortcutSet(KeyStroke.getKeyStroke(KeyEvent.VK_F, menuMask | KeyEvent.SHIFT_DOWN_MASK)),
+                panel);
+
+        DumbAwareAction copyAction = new DumbAwareAction() {
+            @Override
+            public void actionPerformed(@NotNull AnActionEvent e) {
+                copySelectedRow();
+            }
+        };
+        copyAction.registerCustomShortcutSet(CommonShortcuts.getCopy(), queryResultTable);
+        copyAction.registerCustomShortcutSet(
+                new CustomShortcutSet(KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0)),
+                queryResultTable);
+    }
+
+    private void scheduleLocalSearch() {
+        localSearchAlarm.cancelAllRequests();
+        localSearchAlarm.addRequest(this::handleLocalSearchInput, SEARCH_DEBOUNCE_MS);
+    }
+
+    private void scheduleRemoteSearch() {
+        remoteSearchAlarm.cancelAllRequests();
+        remoteSearchAlarm.addRequest(() -> updateTable(remoteSearchField.getText()), SEARCH_DEBOUNCE_MS);
+    }
+
+    public void performLocalSearch(@Nullable String query) {
+        localSearchAlarm.cancelAllRequests();
+        if (query == null) {
+            query = "";
+        }
+        localSearchField.setText(query);
+        handleLocalSearchInput();
+    }
+
+    public void performRemoteSearch(@Nullable String query) {
+        remoteSearchAlarm.cancelAllRequests();
+        if (query == null) {
+            query = "";
+        }
+        remoteSearchField.setText(query);
+        updateTable(query);
+    }
+
+    public boolean copySelectedRow() {
+        int selectedViewRow = queryResultTable.getSelectedRow();
+        if (selectedViewRow < 0) {
+            statusLabel.setText(DataPivotBundle.message("data.pivot.query.status.no.selection"));
+            return false;
+        }
+        int modelRow = queryResultTable.convertRowIndexToModel(selectedViewRow);
+        QueryTableRow row = resultTableModel.getQueryTableRow(modelRow);
+        lastCopiedText = JSONUtil.toJsonStr(row.getData());
+        DataPivotUi.copyText(lastCopiedText);
+        statusLabel.setText(DataPivotBundle.message("data.pivot.query.status.copied"));
+        return true;
+    }
+
+    void handleLocalSearchInput() {
+        String query = localSearchField.getText();
+        clearHighlights();
+        if (StrUtil.isEmpty(query)) {
+            queryResultTable.repaint();
             return;
         }
-        String query = localSearchTextField.getText();
-        clearHighlights();
-        highlightedCells.clear();
-        // 定位到匹配的单元格并高亮
-        for (int col = 0; col < queryResultTable.getColumnCount(); col++) {
-            for (int row = 0; row < queryResultTable.getRowCount(); row++) {
-                Object value = queryResultTable.getValueAt(row, col);
-                String valueStr = String.valueOf(value);
-                if (valueStr.contains(query)) {
+        for (int row = 0; row < resultTableModel.getRowCount(); row++) {
+            for (int col = 0; col < resultTableModel.getColumnCount(); col++) {
+                Object value = resultTableModel.getValueAt(row, col);
+                if (String.valueOf(value).contains(query)) {
                     highlightedCells.add(new Pair<>(row, col));
                 }
             }
@@ -221,68 +294,121 @@ public class QueryTableComponent extends JDialog implements Disposable {
         queryResultTable.repaint();
     }
 
-    private void handleRemoteSearchInput() {
-        if (REMOTE_SEARCH_PLACEHOLDER.equals(remoteSearchTextField.getText())) {
-            return;
-        }
-        if (remoteDebounceTimer != null) {
-            remoteDebounceTimer.cancel();
-        }
-        remoteDebounceTimer = new Timer();
-        remoteDebounceTimer.schedule(new TimerTask() {
-            @Override
-            public void run() {
-                SwingUtilities.invokeLater(() -> updateTable(remoteSearchTextField.getText()));
-            }
-        }, 300); // 300毫秒延迟
-    }
-
-    private void updateTable(String query) {
+    void updateTable(@Nullable String query) {
+        statusLabel.setText(DataPivotBundle.message("data.pivot.query.status.searching"));
         if (StrUtil.isEmpty(query)) {
             databaseQueryConfig.setLikeValue(null);
         } else {
             databaseQueryConfig.setLikeValue(query);
         }
-        List<Map<String, Object>> updatedResults = QueryTool.query(databaseQueryConfig);
-        if (updatedResults != null && !updatedResults.isEmpty()) {
-            Set<String> columnNamesSet = updatedResults.get(0).keySet();
-            String[] columnNames = columnNamesSet.toArray(new String[0]);
-            List<QueryTableRow> filteredItems = updatedResults.stream()
-                    .map(result -> new QueryTableRow(result, columnNamesSet))
-                    .collect(Collectors.toList());
-            resultTableModel.updateData(filteredItems, columnNames);
-        } else {
-            resultTableModel.updateData(List.of(), new String[0]);
+        List<Map<String, Object>> updatedResults = queryRunner.query(databaseQueryConfig);
+        if (updatedResults == null) {
+            updatedResults = List.of();
         }
+        String[] columnNames = resolveColumnNames(updatedResults);
+        resultTableModel.updateData(toRows(updatedResults, columnNames), columnNames);
+        DataPivotUi.applyFixedColumnWidths(queryResultTable);
+        handleLocalSearchInput();
+        refreshStatus();
     }
 
-    private void handleRowSelection(QueryTableRow rowData) {
-        String jsonStr = JSONUtil.toJsonStr(rowData.getData());
-        copyToClipboard(jsonStr);
+    private void refreshStatus() {
+        int rows = resultTableModel.getRowCount();
+        if (rows == 0) {
+            statusLabel.setText(DataPivotBundle.message("data.pivot.query.status.empty"));
+        } else {
+            statusLabel.setText(DataPivotBundle.message("data.pivot.query.status.rows", rows));
+        }
+        queryResultTable.getEmptyText().setText(DataPivotBundle.message("data.pivot.query.empty"));
     }
 
-    private void copyToClipboard(String text) {
-        StringSelection stringSelection = new StringSelection(text);
-        Toolkit.getDefaultToolkit().getSystemClipboard().setContents(stringSelection, null);
-        Messages.showInfoMessage("已复制到剪贴板", "信息");
+    private String statusText() {
+        int rows = resultTableModel.getRowCount();
+        return rows == 0
+                ? DataPivotBundle.message("data.pivot.query.status.empty")
+                : DataPivotBundle.message("data.pivot.query.status.rows", rows);
     }
 
-    private static class ResultTableModel extends AbstractTableModel {
+    private void clearHighlights() {
+        highlightedCells.clear();
+    }
+
+    private String[] resolveColumnNames(@NotNull List<Map<String, Object>> queryResults) {
+        if (!queryResults.isEmpty()) {
+            Set<String> names = new LinkedHashSet<>(queryResults.get(0).keySet());
+            return names.toArray(new String[0]);
+        }
+        List<String> columns = databaseQueryConfig.getColumns();
+        if (columns == null || columns.isEmpty() || (columns.size() == 1 && "*".equals(columns.get(0)))) {
+            return new String[0];
+        }
+        return columns.toArray(new String[0]);
+    }
+
+    private static List<QueryTableRow> toRows(@NotNull List<Map<String, Object>> queryResults, String[] columnNames) {
+        Set<String> columnSet = Arrays.stream(columnNames).collect(Collectors.toCollection(LinkedHashSet::new));
+        return queryResults.stream()
+                .map(result -> new QueryTableRow(result, columnSet))
+                .collect(Collectors.toCollection(CopyOnWriteArrayList::new));
+    }
+
+    private static @NotNull String nullToEmpty(@Nullable String value) {
+        return value == null ? "" : value;
+    }
+
+    public JBTable getQueryResultTable() {
+        return queryResultTable;
+    }
+
+    public SearchTextField getLocalSearchField() {
+        return localSearchField;
+    }
+
+    public SearchTextField getRemoteSearchField() {
+        return remoteSearchField;
+    }
+
+    public JBLabel getStatusLabel() {
+        return statusLabel;
+    }
+
+    public JBLabel getHintLabel() {
+        return hintLabel;
+    }
+
+    public String getLastCopiedText() {
+        return lastCopiedText;
+    }
+
+    public int getHighlightedCellCount() {
+        return highlightedCells.size();
+    }
+
+    public ResultTableModel getResultTableModel() {
+        return resultTableModel;
+    }
+
+    static final class ResultTableModel extends AbstractTableModel {
         private List<QueryTableRow> data;
         private String[] columnNames;
 
-        public ResultTableModel(List<QueryTableRow> data, String[] columnNames) {
+        ResultTableModel(List<QueryTableRow> data, String[] columnNames) {
             this.data = data;
             this.columnNames = columnNames;
         }
 
-        public void updateData(List<QueryTableRow> newData, String[] columnNames) {
+        void updateData(List<QueryTableRow> newData, String[] columnNames) {
+            boolean structureChanged = !Arrays.equals(this.columnNames, columnNames);
             this.data = newData;
             this.columnNames = columnNames;
-            fireTableDataChanged();
+            if (structureChanged) {
+                fireTableStructureChanged();
+            } else {
+                fireTableDataChanged();
+            }
         }
 
-        public QueryTableRow getQueryTableRow(int rowIndex) {
+        QueryTableRow getQueryTableRow(int rowIndex) {
             return data.get(rowIndex);
         }
 
@@ -299,8 +425,7 @@ public class QueryTableComponent extends JDialog implements Disposable {
         @Override
         public Object getValueAt(int rowIndex, int columnIndex) {
             QueryTableRow rowData = data.get(rowIndex);
-            String columnName = columnNames[columnIndex];
-            return rowData.getData().get(columnName);
+            return rowData.getData().get(columnNames[columnIndex]);
         }
 
         @Override
@@ -309,25 +434,37 @@ public class QueryTableComponent extends JDialog implements Disposable {
         }
     }
 
-    private static class QueryTableRow {
+    static final class QueryTableRow {
         private final Map<String, Object> data;
         private final Set<String> columns;
 
-        public QueryTableRow(Map<String, Object> data, Set<String> columns) {
+        QueryTableRow(Map<String, Object> data, Set<String> columns) {
             this.data = data;
             this.columns = columns;
         }
 
-        public Map<String, Object> getData() {
+        Map<String, Object> getData() {
             return data;
         }
     }
 
     private class HighlightRenderer extends DefaultTableCellRenderer {
         @Override
-        public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
+        public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected,
+                                                       boolean hasFocus, int row, int column) {
             Component cell = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
-            cell.setBackground(isHighlighted(row, column) ? HIGHLIGHT_COLOR : table.getBackground());
+            int modelRow = table.convertRowIndexToModel(row);
+            int modelColumn = table.convertColumnIndexToModel(column);
+            if (isSelected) {
+                cell.setBackground(table.getSelectionBackground());
+                cell.setForeground(table.getSelectionForeground());
+            } else if (isHighlighted(modelRow, modelColumn)) {
+                cell.setBackground(DataPivotUi.HIGHLIGHT_COLOR);
+                cell.setForeground(table.getForeground());
+            } else {
+                cell.setBackground(table.getBackground());
+                cell.setForeground(table.getForeground());
+            }
             return cell;
         }
 
@@ -335,27 +472,9 @@ public class QueryTableComponent extends JDialog implements Disposable {
             for (Pair<Integer, Integer> cell : highlightedCells) {
                 if (cell.getFirst() == row && cell.getSecond() == column) {
                     return true;
-                } else if (cell.getFirst() == -1 && cell.getSecond() == column) {
-                    return true;
                 }
             }
             return false;
-        }
-    }
-
-    private void clearHighlights() {
-        highlightedCells.clear();
-        queryResultTable.repaint();
-    }
-
-    @Override
-    public void dispose() {
-        // 清理资源
-        if (remoteDebounceTimer != null) {
-            remoteDebounceTimer.cancel();
-        }
-        if (localDebounceTimer != null) {
-            localDebounceTimer.cancel();
         }
     }
 }

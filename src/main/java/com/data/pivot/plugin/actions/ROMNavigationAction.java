@@ -10,6 +10,7 @@ import com.data.pivot.plugin.tool.PsiElementUtil;
 import com.intellij.database.datagrid.DataGrid;
 import com.intellij.database.datagrid.DataGridUtil;
 import com.intellij.database.psi.DbColumn;
+import com.intellij.openapi.actionSystem.ActionUpdateThread;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
 import com.intellij.psi.PsiElement;
@@ -21,18 +22,16 @@ public class ROMNavigationAction extends BaseAnAction {
     protected void action(AnActionEvent e) {
         PsiElement psiElement = e.getData(CommonDataKeys.PSI_ELEMENT);
         if (psiElement == null) {
-            MessageUtil.Dialog.info(DataPivotBundle.message("data.pivot.hint.relation.mapping.null", ""));
+            MessageUtil.mappingError(editor, DataPivotBundle.message("data.pivot.hint.relation.mapping.null", ""));
             return;
         }
         DataPivotRelation dataPivotRelation = PsiElementUtil.getDataPivotRelation(psiElement);
         if (dataPivotRelation.getDataPivotMappingSettingInfo() == null) {
-            //dataPivotRelation.getDatabaseReference()//需要在每次loadsetting做名称映射uuid
-            MessageUtil.Dialog.info(
-                    DataPivotBundle.message("data.pivot.hint.relation.mapping.null",
-                            dataPivotRelation.getDatabaseReference()));
+            MessageUtil.mappingError(editor, DataPivotBundle.message(
+                    "data.pivot.hint.relation.mapping.null", dataPivotRelation.getDatabaseReference()));
             return;
         }
-        DataPivotObject dataPivotObject = DataPivotApplication.romMapping(dataPivotRelation,editor);
+        DataPivotObject dataPivotObject = DataPivotApplication.romMapping(dataPivotRelation, editor);
         if (dataPivotObject == null) {
             return;
         }
@@ -41,20 +40,20 @@ public class ROMNavigationAction extends BaseAnAction {
 
     private boolean isDataGrid(AnActionEvent e) {
         DataGrid dataGrid = DataGridUtil.getDataGrid(e.getDataContext());
-        return dataGrid!=null&&dataGrid.getVisibleRows().size()*dataGrid.getVisibleColumns().size()>0;
+        return dataGrid != null && dataGrid.getVisibleRows().size() * dataGrid.getVisibleColumns().size() > 0;
+    }
+
+    @Override
+    public @NotNull ActionUpdateThread getActionUpdateThread() {
+        return ActionUpdateThread.BGT;
     }
 
     @Override
     public void update(@NotNull AnActionEvent e) {
         PsiElement psiElement = e.getData(CommonDataKeys.PSI_ELEMENT);
-        if ((psiElement!=null&&psiElement instanceof DbColumn)||isEnabled(e)){
-            //启用
-            e.getPresentation().setEnabled(true);
-        }else {
-            e.getPresentation().setEnabled(false);
-        }
-
+        e.getPresentation().setEnabled((psiElement instanceof DbColumn) || isEnabled(e));
     }
+
     private boolean isEnabled(@NotNull AnActionEvent e) {
         DataGrid dataGrid = DataGridUtil.getDataGrid(e.getDataContext());
         if (dataGrid == null) {

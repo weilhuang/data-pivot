@@ -6,6 +6,7 @@ import com.data.pivot.plugin.constants.DataPivotConstants;
 import com.data.pivot.plugin.entity.DataPivotDatabaseInfo;
 import com.data.pivot.plugin.entity.DatabaseQueryConfig;
 import com.data.pivot.plugin.enums.DBType;
+import com.data.pivot.plugin.i18n.DataPivotBundle;
 import com.intellij.database.cli.DbCliUtil;
 import com.intellij.database.dataSource.DatabaseDriver;
 import com.intellij.database.dataSource.LocalDataSource;
@@ -157,13 +158,14 @@ public class DataGripUtil {
         PsiClass containingClass = psiField.getContainingClass();
         DbTable tableInfo = DataPivotLineMarkerProvider.getTableInfo(containingClass);
         if (tableInfo == null) {
-            MessageUtil.Hint.error(editor,containingClass.getName()+":无法找到该类所映射的数据库实体");
+            MessageUtil.Hint.error(editor, DataPivotBundle.message(
+                    "data.pivot.query.hint.table.null", containingClass.getName()));
             return null;
         }
         DbColumn columnInfo = DataPivotLineMarkerProvider.getColumnInfo(tableInfo, psiField);
         if (columnInfo == null) {
-            //不是数据库字段
-            MessageUtil.Hint.error(editor,psiField.getName()+":无法找到该属性所映射的数据库字段");
+            MessageUtil.Hint.error(editor, DataPivotBundle.message(
+                    "data.pivot.query.hint.column.null", psiField.getName()));
             return null;
         }
         DbDataSource dataSource = tableInfo.getDataSource();
@@ -178,7 +180,8 @@ public class DataGripUtil {
             }
         }
         if (localDataSource == null) {
-            MessageUtil.Hint.error(editor,psiField.getName()+":无法找到关联度映射的数据源");
+            MessageUtil.Hint.error(editor, DataPivotBundle.message(
+                    "data.pivot.query.hint.datasource.null", psiField.getName()));
             return null;
         }
         DatabaseQueryConfig databaseQueryConfig = DataGripUtil.loadDatabaseQueryConfig(localDataSource, tableInfo, null, columnInfo);

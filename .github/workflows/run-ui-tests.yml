@@ -1,7 +1,15 @@
+# Cross-platform IntelliJ UI component tests.
+#
+# PR / main CI already runs ideaUiTest on ubuntu-latest via the Build workflow (`./gradlew check`).
+# This workflow is the optional OS matrix: workflow_dispatch (manual) and a weekly schedule.
+# It does not block pull requests.
+
 name: Run UI component tests
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: '0 3 * * 1'
 
 concurrency:
   group: ui-component-tests-${{ github.ref }}
@@ -11,7 +19,7 @@ jobs:
   ui_component_test:
     name: UI component tests (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -19,6 +27,13 @@ jobs:
     permissions:
       contents: read
     steps:
+      - name: Maximize Build Space
+        if: runner.os == 'Linux'
+        uses: jlumbroso/free-disk-space@v1.3.1
+        with:
+          tool-cache: false
+          large-packages: false
+
       - name: Fetch sources
         uses: actions/checkout@v6
 

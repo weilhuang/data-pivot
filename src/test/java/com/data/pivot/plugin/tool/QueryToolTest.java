@@ -51,6 +51,23 @@ public class QueryToolTest {
     }
 
     @Test
+    public void generatePostgresSqlWithLikeCondition() {
+        DatabaseQueryConfig config = config(DBType.POSTGRES, List.of("id", "name"), "name", "alice");
+
+        String sql = QueryTool.generateSql(config);
+
+        assertEquals("SELECT id, name FROM demo.user_account WHERE name LIKE ? LIMIT 20", sql);
+    }
+
+    @Test
+    public void isDirectSqlQueryWhenSqlIsPresent() {
+        DatabaseQueryConfig config = config(DBType.MYSQL, List.of("*"), null, null);
+        assertEquals(false, config.isDirectSqlQuery());
+        config.setSql("SELECT 1");
+        assertEquals(true, config.isDirectSqlQuery());
+    }
+
+    @Test
     public void generateSqlServerSqlUsesSchemaWhenPresent() {
         DatabaseQueryConfig config = new DatabaseQueryConfig(
                 "ds",

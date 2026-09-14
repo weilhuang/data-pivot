@@ -41,6 +41,14 @@ public class DataPivotStartupIntegrationTest extends DataPivotPlatformTestCase {
                 "com.data.pivot.plugin.config.DataPivotInitializer");
         assertAttribute(pluginXml, "projectService", "serviceImplementation",
                 "com.data.pivot.plugin.context.DataPivotApplication");
+        assertAttribute(pluginXml, "projectConfigurable", "instance",
+                "com.data.pivot.plugin.view.setting.DataPivotMappingSettingView");
+        assertAttribute(pluginXml, "idea-plugin", "require-restart", "true");
+        assertAction(pluginXml, "DataPivot.Query", "com.data.pivot.plugin.actions.DataPivotQueryAction", "alt Q");
+        assertAction(pluginXml, "DataPivot.Analysis", "com.data.pivot.plugin.actions.DataPivotAnalysisAction", "alt A");
+        assertAction(pluginXml, "DataPivot.DataPivotORM", "com.data.pivot.plugin.actions.ORMNavigationAction", "alt R");
+        assertAction(pluginXml, "DataPivot.DataPivotROM", "com.data.pivot.plugin.actions.ROMNavigationAction", "alt O");
+        assertElementText(pluginXml, "resource-bundle", "messages.DataPivotBundle");
     }
 
     private static void assertElementText(Document document, String tagName, String expectedText) {
@@ -61,5 +69,26 @@ public class DataPivotStartupIntegrationTest extends DataPivotPlatformTestCase {
             }
         }
         fail("Missing <" + tagName + "> " + attributeName + ": " + expectedValue);
+    }
+
+    private static void assertAction(Document document, String actionId, String className, String shortcut) {
+        NodeList actions = document.getElementsByTagName("action");
+        for (int i = 0; i < actions.getLength(); i++) {
+            var action = actions.item(i).getAttributes();
+            if (!actionId.equals(action.getNamedItem("id").getNodeValue())) {
+                continue;
+            }
+            assertEquals(className, action.getNamedItem("class").getNodeValue());
+            NodeList shortcuts = actions.item(i).getChildNodes();
+            for (int j = 0; j < shortcuts.getLength(); j++) {
+                if (!"keyboard-shortcut".equals(shortcuts.item(j).getNodeName())) {
+                    continue;
+                }
+                assertEquals(shortcut, shortcuts.item(j).getAttributes().getNamedItem("first-keystroke").getNodeValue());
+                return;
+            }
+            fail("Missing keyboard-shortcut for action " + actionId);
+        }
+        fail("Missing action " + actionId);
     }
 }
