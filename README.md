@@ -3,7 +3,11 @@
 
 # Data-Pivot
 
-<img src="src/main/resources/META-INF/pluginIcon.svg" alt="data-pivot plugin logo" width="128" height="128" />
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-readme-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="docs/assets/logo-readme.svg">
+  <img src="docs/assets/logo-readme.svg" alt="data-pivot plugin logo" width="128" height="128" />
+</picture>
 </br>
 
 [![Downloads](https://img.shields.io/jetbrains/plugin/d/com.github.wl2027.datapivotplugin.svg)](https://plugins.jetbrains.com/plugin/23828-data-pivot)

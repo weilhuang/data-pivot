@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 148 148" width="148" height="148" role="img" aria-labelledby="logo-title" color="#e6edf3">
+  <title id="logo-title">data-pivot</title>
+  <desc>Dark-theme README logo: light ink on transparent, same targeting-reticle motif as the plugin icon.</desc>
+  <!-- Outer ring + cardinal ticks (same motif as pluginIcon) -->
+  <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="74" cy="74" r="68" stroke-width="8.5"/>
+    <path stroke-width="12" d="M74 6.5V28.5M74 141.5V119.5M6.5 74H28.5M141.5 74H119.5"/>
+  </g>
+  <!-- Condensed 01 from the original mark -->
+  <g fill="currentColor">
+    <path fill-rule="evenodd" d="M63 50.2a13 13 0 0 1 13 13v18.6a13 13 0 0 1-26 0V63.2a13 13 0 0 1 13-13zm0 8.6a2.1 2.1 0 0 0-2.1 2.1v24.3a2.1 2.1 0 0 0 4.2 0V60.9a2.1 2.1 0 0 0-2.1-2.1z"/>
+    <path d="M86.2 53.8h11.3v41.2H86.2V64.6H78V56.4h8.2z"/>
+  </g>
+</svg>
