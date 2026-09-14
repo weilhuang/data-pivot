@@ -26,6 +26,20 @@ public class AnalysisResultModelTest {
     }
 
     @Test
+    public void fromMapsReadsOracleUppercaseAliases() {
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("STATUS", "ACTIVE");
+        row.put("RS_COUNT", 18);
+        row.put("PERCENTAGE", 90.0);
+
+        List<AnalysisRow> rows = AnalysisResultModel.fromMaps(List.of(row), "status");
+
+        assertEquals("ACTIVE", rows.get(0).getValue());
+        assertEquals("18", rows.get(0).getCount());
+        assertEquals("90.0", rows.get(0).getPercentage());
+    }
+
+    @Test
     public void fromMapsReturnsEmptyForMissingInput() {
         assertTrue(AnalysisResultModel.fromMaps(null, "status").isEmpty());
         assertTrue(AnalysisResultModel.fromMaps(List.of(), "status").isEmpty());

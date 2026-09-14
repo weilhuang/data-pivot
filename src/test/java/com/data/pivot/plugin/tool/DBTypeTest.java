@@ -5,7 +5,9 @@ import com.data.pivot.plugin.enums.DefaultStrategyType;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 public class DBTypeTest {
     @Test
@@ -18,6 +20,16 @@ public class DBTypeTest {
         assertEquals(DBType.MONGO, DBType.getByName("Mongo"));
         assertNull(DBType.getByName(null));
         assertNull(DBType.getByName("Redis"));
+    }
+
+    @Test
+    public void jdbcQuerySupportExcludesMongoAndUnknown() {
+        assertTrue(DBType.supportsJdbcQuery(DBType.MYSQL));
+        assertTrue(DBType.supportsJdbcQuery(DBType.POSTGRES));
+        assertTrue(DBType.supportsJdbcQuery(DBType.ORACLE));
+        assertTrue(DBType.supportsJdbcQuery(DBType.MSSQL));
+        assertFalse(DBType.supportsJdbcQuery(DBType.MONGO));
+        assertFalse(DBType.supportsJdbcQuery(null));
     }
 
     @Test

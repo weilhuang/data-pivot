@@ -27,9 +27,9 @@ public final class AnalysisResultModel {
                 continue;
             }
             rows.add(new AnalysisRow(
-                    stringify(map.get(conditionField)),
-                    stringify(map.get(COUNT_COLUMN)),
-                    stringify(map.get(PERCENTAGE_COLUMN))
+                    stringify(getIgnoreCase(map, conditionField)),
+                    stringify(getIgnoreCase(map, COUNT_COLUMN)),
+                    stringify(getIgnoreCase(map, PERCENTAGE_COLUMN))
             ));
         }
         return Collections.unmodifiableList(rows);
@@ -53,6 +53,21 @@ public final class AnalysisResultModel {
             elements.add(toLookupElement(row, selectedText, sql));
         }
         return elements;
+    }
+
+    private static Object getIgnoreCase(@NotNull Map<String, Object> map, @Nullable String key) {
+        if (key == null) {
+            return null;
+        }
+        if (map.containsKey(key)) {
+            return map.get(key);
+        }
+        for (Map.Entry<String, Object> entry : map.entrySet()) {
+            if (entry.getKey() != null && entry.getKey().equalsIgnoreCase(key)) {
+                return entry.getValue();
+            }
+        }
+        return null;
     }
 
     private static @NotNull String stringify(@Nullable Object value) {

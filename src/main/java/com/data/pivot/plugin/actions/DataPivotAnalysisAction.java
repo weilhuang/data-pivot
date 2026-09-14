@@ -1,8 +1,12 @@
 package com.data.pivot.plugin.actions;
 
 import com.data.pivot.plugin.entity.DatabaseQueryConfig;
+import com.data.pivot.plugin.enums.DBType;
+import com.data.pivot.plugin.i18n.DataPivotBundle;
 import com.data.pivot.plugin.model.BaseAnAction;
 import com.data.pivot.plugin.tool.DataGripUtil;
+import com.data.pivot.plugin.tool.MessageUtil;
+import com.data.pivot.plugin.tool.QueryFailedException;
 import com.data.pivot.plugin.tool.QueryTool;
 import com.data.pivot.plugin.view.report.AnalysisResultComponent;
 import com.intellij.openapi.actionSystem.ActionUpdateThread;
@@ -27,7 +31,21 @@ public class DataPivotAnalysisAction extends BaseAnAction {
         if (databaseQueryConfig == null) {
             return;
         }
-        String sql = QueryTool.generateAnalysisSql(databaseQueryConfig);
+        if (!DBType.supportsJdbcQuery(databaseQueryConfig.getDbType())) {
+            String typeName = databaseQueryConfig.getDbType() == null
+                    ? "unknown"
+                    : databaseQueryConfig.getDbType().getName();
+            MessageUtil.mappingError(editor, DataPivotBundle.message(
+                    "data.pivot.analysis.error.unsupported", typeName));
+            return;
+        }
+        String sql;
+        try {
+            sql = QueryTool.generateAnalysisSql(databaseQueryConfig);
+        } catch (QueryFailedException failed) {
+            MessageUtil.mappingError(editor, failed.getMessage());
+            return;
+        }
         databaseQueryConfig.setSql(sql);
         AnalysisResultComponent dialog = new AnalysisResultComponent(e.getProject(), databaseQueryConfig, List.of(), sql);
         dialog.loadResults(QueryTool::query);

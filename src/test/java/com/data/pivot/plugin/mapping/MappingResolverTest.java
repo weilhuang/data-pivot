@@ -5,6 +5,7 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertSame;
 
 public class MappingResolverTest {
     @Test
@@ -20,5 +21,16 @@ public class MappingResolverTest {
     public void settingUniqueIdReturnsNullWhenReferenceIsMissing() {
         assertNull(MappingResolver.settingUniqueId(null));
         assertNull(MappingResolver.settingUniqueId(new DataPivotMappingSettingInfo()));
+    }
+
+    @Test
+    public void stampCacheMissesWhenModificationStampChanges() {
+        MappingResolver.StampCache cache = new MappingResolver.StampCache();
+        MappingHit first = MappingHit.unresolved();
+        cache.put("com.example.SysUser", 1L, first);
+
+        assertSame(first, cache.getIfFresh("com.example.SysUser", 1L));
+        assertNull("annotation/source edits change the file stamp and must not reuse the old table",
+                cache.getIfFresh("com.example.SysUser", 2L));
     }
 }

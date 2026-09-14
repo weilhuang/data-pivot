@@ -5,6 +5,7 @@ import com.data.pivot.plugin.context.DataPivotApplication;
 import com.data.pivot.plugin.entity.DataPivotDatabaseInfo;
 import com.data.pivot.plugin.entity.DataPivotMappingSettingInfo;
 import com.data.pivot.plugin.entity.custom.DataPivotStrategyInfo;
+import com.data.pivot.plugin.enums.DBType;
 import com.data.pivot.plugin.model.DataPivotStrategyActuator;
 import com.data.pivot.plugin.tool.PsiElementUtil;
 import com.intellij.database.model.DasColumn;
@@ -20,6 +21,7 @@ import com.intellij.database.util.DbImplUtilCore;
 import com.intellij.openapi.project.Project;
 import com.intellij.psi.PsiClass;
 import com.intellij.psi.PsiField;
+import com.intellij.psi.PsiFile;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -33,7 +35,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * otherwise unique exact/fuzzy name match, never a silent max-similarity pick.
  */
 public final class MappingResolver {
-    private static final ConcurrentHashMap<String, MappingHit> TABLE_CACHE = new ConcurrentHashMap<>();
+    private static final StampCache TABLE_CACHE = new StampCache();
 
     private MappingResolver() {
     }
@@ -47,12 +49,13 @@ public final class MappingResolver {
             return MappingHit.unresolved();
         }
         String key = cacheKey(psiClass);
-        MappingHit cached = TABLE_CACHE.get(key);
+        long stamp = modificationStamp(psiClass);
+        MappingHit cached = TABLE_CACHE.getIfFresh(key, stamp);
         if (cached != null) {
             return cached;
         }
         MappingHit resolved = resolveTableUncached(psiClass);
-        TABLE_CACHE.put(key, resolved);
+        TABLE_CACHE.put(key, stamp, resolved);
         return resolved;
     }
 
@@ -143,6 +146,9 @@ public final class MappingResolver {
         }
         List<NameMatcher.Scored<TableCandidate>> scored = new ArrayList<>();
         for (DbDataSource dataSource : dataSources) {
+            if (!isJdbcDataSource(dataSource)) {
+                continue;
+            }
             for (DasTable dasTable : DasUtil.getTables(dataSource)) {
                 scored.add(new NameMatcher.Scored<>(
                         new TableCandidate(dataSource, dasTable),
@@ -173,7 +179,7 @@ public final class MappingResolver {
             return null;
         }
         for (DbDataSource dataSource : dataSources) {
-            if (!matchesDataSource(dataSource, setting)) {
+            if (!matchesDataSource(dataSource, setting) || !isJdbcDataSource(dataSource)) {
                 continue;
             }
             for (DasTable dasTable : DasUtil.getTables(dataSource)) {
@@ -256,6 +262,42 @@ public final class MappingResolver {
         String qualified = psiClass.getQualifiedName();
         String name = qualified != null ? qualified : String.valueOf(psiClass.getName());
         return project.getLocationHash() + "#" + name;
+    }
+
+    static long modificationStamp(@NotNull PsiClass psiClass) {
+        PsiFile file = psiClass.getContainingFile();
+        return file == null ? Long.MIN_VALUE : file.getModificationStamp();
+    }
+
+    static boolean isJdbcDataSource(@NotNull DbDataSource dataSource) {
+        try {
+            return DBType.supportsJdbcQuery(DBType.getByName(dataSource.getDbms().getName()));
+        } catch (RuntimeException ignored) {
+            return false;
+        }
+    }
+
+    static final class StampCache {
+        private final ConcurrentHashMap<String, Entry> map = new ConcurrentHashMap<>();
+
+        record Entry(MappingHit hit, long stamp) {
+        }
+
+        @Nullable MappingHit getIfFresh(@NotNull String key, long stamp) {
+            Entry entry = map.get(key);
+            if (entry == null || entry.stamp() != stamp) {
+                return null;
+            }
+            return entry.hit();
+        }
+
+        void put(@NotNull String key, long stamp, @NotNull MappingHit hit) {
+            map.put(key, new Entry(hit, stamp));
+        }
+
+        void clear() {
+            map.clear();
+        }
     }
 
     private record TableCandidate(DbDataSource dataSource, DasTable table) {

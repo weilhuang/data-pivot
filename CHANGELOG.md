@@ -20,8 +20,11 @@
 - 默认 HumpUnderline / JPA / MyBatis-Plus 回退的驼峰转换改为正确的捕获组大写（`hello_world_test` → `helloWorldTest`，`USER_ID` → `userId`）。
 - 启动不再对每个数据源抢 JDBC 连接；连接池仅由 Query 按需创建，dispose 仍关闭 `QueryTool` 与驱动。
 - Query / Analysis 的 JDBC 移出 EDT：先展示对话框与「正在查询」，再在后台任务回写结果。
-- 装订线仅在高置信（精确名或 Settings 策略命中）时显示，并按 Profile 缩小数据源/库扫描；缓存随 schema 刷新与 Settings Apply 失效，不再按访问次数驱逐。
+- 装订线仅在高置信（精确名或 Settings 策略命中）时显示，并按 Profile 缩小数据源/库扫描；缓存随 PSI 修改、schema 刷新与 Settings Apply 失效，不再按访问次数驱逐。
 - Settings 帮助文案改为如实描述映射优先级、模糊回退与 Analysis 方言 SQL；实体上的 `sqlCode` / 自定义 SQL 字段保留反序列化但不再生效。
+- PostgreSQL / Oracle 在存在 schema 时用 `schema.table` 限定，不再把数据库名当成 schema。
+- Oracle Analysis 给 `rs_count` / `percentage` 加引号，避免未加引号别名被转成大写后对不上结果列。
+- Analysis 对 MongoDB / 未知 DBMS 提前给出用户可见错误，不再抛出未处理的 `IllegalArgumentException`。
 
 ## [2.2.0] - 2026-06-06
 ### Added

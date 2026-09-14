@@ -7,6 +7,8 @@ import org.junit.Test;
 import java.util.List;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class QueryToolTest {
     @Test
@@ -57,6 +59,31 @@ public class QueryToolTest {
         String sql = QueryTool.generateSql(config);
 
         assertEquals("SELECT id, name FROM demo.user_account WHERE name LIKE ? LIMIT 20", sql);
+    }
+
+    @Test
+    public void generatePostgresSqlUsesSchemaWhenPresentAndDbDiffers() {
+        DatabaseQueryConfig config = new DatabaseQueryConfig(
+                "ds",
+                DBType.POSTGRES,
+                "jdbc:postgresql://localhost:5432/demo",
+                "user",
+                "password",
+                "driver",
+                List.of(),
+                "demo",
+                "public",
+                "user_account",
+                List.of("id", "name"),
+                "name",
+                "alice",
+                null
+        );
+
+        String sql = QueryTool.generateSql(config);
+
+        assertEquals("SELECT id, name FROM public.user_account WHERE name LIKE ? LIMIT 20", sql);
+        assertEquals("\"public\".\"user_account\"", QueryTool.quotedTableRef(config));
     }
 
     @Test
@@ -114,14 +141,54 @@ public class QueryToolTest {
     }
 
     @Test
-    public void generateOracleAnalysisSqlWrapsGroupByWithRownumLimit() {
+    public void generatePostgresAnalysisSqlPrefersSchemaOverDatabaseName() {
+        DatabaseQueryConfig config = new DatabaseQueryConfig(
+                "ds",
+                DBType.POSTGRES,
+                "jdbc:postgresql://localhost:5432/demo",
+                "user",
+                "password",
+                "driver",
+                List.of(),
+                "demo",
+                "public",
+                "user_account",
+                List.of("name"),
+                "name",
+                null,
+                null
+        );
+
+        String sql = QueryTool.generateAnalysisSql(config);
+
+        assertEquals(
+                "SELECT \"name\", COUNT(*) AS rs_count, ROUND(COUNT(*) * 100.0 / NULLIF((SELECT COUNT(*) FROM \"public\".\"user_account\"), 0), 2) AS percentage FROM \"public\".\"user_account\" GROUP BY \"name\" ORDER BY rs_count DESC, percentage DESC LIMIT 20",
+                sql);
+    }
+
+    @Test
+    public void generateOracleAnalysisSqlQuotesAliasesExpectedByResultModel() {
         DatabaseQueryConfig config = config(DBType.ORACLE, List.of("name"), "name", null);
 
         String sql = QueryTool.generateAnalysisSql(config);
 
         assertEquals(
-                "SELECT * FROM (SELECT \"name\", COUNT(*) AS rs_count, ROUND(COUNT(*) * 100.0 / NULLIF((SELECT COUNT(*) FROM \"demo\".\"user_account\"), 0), 2) AS percentage FROM \"demo\".\"user_account\" GROUP BY \"name\" ORDER BY COUNT(*) DESC) WHERE ROWNUM <= 20",
+                "SELECT * FROM (SELECT \"name\", COUNT(*) AS \"rs_count\", ROUND(COUNT(*) * 100.0 / NULLIF((SELECT COUNT(*) FROM \"demo\".\"user_account\"), 0), 2) AS \"percentage\" FROM \"demo\".\"user_account\" GROUP BY \"name\" ORDER BY COUNT(*) DESC) WHERE ROWNUM <= 20",
                 sql);
+        assertTrue(sql.contains("AS \"" + com.data.pivot.plugin.view.report.AnalysisResultModel.COUNT_COLUMN + "\""));
+        assertTrue(sql.contains("AS \"" + com.data.pivot.plugin.view.report.AnalysisResultModel.PERCENTAGE_COLUMN + "\""));
+        assertEquals("\"rs_count\"", QueryTool.analysisAlias(DBType.ORACLE, QueryTool.ANALYSIS_COUNT_ALIAS));
+    }
+
+    @Test
+    public void generateAnalysisSqlThrowsQueryFailedExceptionForMongo() {
+        DatabaseQueryConfig config = config(DBType.MONGO, List.of("name"), "name", null);
+        try {
+            QueryTool.generateAnalysisSql(config);
+            fail("MongoDB analysis must fail with a user-facing QueryFailedException");
+        } catch (QueryFailedException expected) {
+            assertTrue(expected.getMessage().contains("MONGO"));
+        }
     }
 
     @Test

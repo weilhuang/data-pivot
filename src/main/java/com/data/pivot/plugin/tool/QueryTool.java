@@ -30,6 +30,8 @@ public class QueryTool {
 
     private static final int LIMIT = 20;
     static final int ANALYSIS_DISTINCT_LIMIT = 20;
+    static final String ANALYSIS_COUNT_ALIAS = "rs_count";
+    static final String ANALYSIS_PERCENTAGE_ALIAS = "percentage";
     private static final int QUERY_TIMEOUT = 5;
     private static final int MAX_CONNECTIONS = 10;
     private static final int VALIDATION_TIMEOUT = 2;
@@ -175,7 +177,7 @@ public class QueryTool {
                 return String.format("SELECT TOP %d %s FROM %s%s",
                         LIMIT, columnList, table, conditionClause);
             default:
-                throw new IllegalArgumentException("Unsupported DB type: " + config.getDbType());
+                throw new QueryFailedException("Unsupported DB type: " + config.getDbType());
         }
     }
 
@@ -185,49 +187,84 @@ public class QueryTool {
      */
     public static String generateAnalysisSql(DatabaseQueryConfig config) {
         DBType dbType = config.getDbType();
-        if (dbType == null || dbType == DBType.MONGO) {
-            throw new IllegalArgumentException("Unsupported DB type: " + dbType);
+        if (!DBType.supportsJdbcQuery(dbType)) {
+            throw new QueryFailedException("Unsupported DB type: " + dbType);
         }
         String table = quotedTableRef(config);
         String column = quoteIdentifier(dbType, config.getConditionField());
         int limit = ANALYSIS_DISTINCT_LIMIT;
-        String inner = String.format(
-                "SELECT %s, COUNT(*) AS rs_count, ROUND(COUNT(*) * 100.0 / NULLIF((SELECT COUNT(*) FROM %s), 0), 2) AS percentage FROM %s GROUP BY %s",
-                column, table, table, column);
+        String selectList = analysisSelectList(dbType, column, table);
+        String inner = "SELECT " + selectList + " FROM " + table + " GROUP BY " + column;
         return switch (dbType) {
-            case MYSQL, POSTGRES -> inner + " ORDER BY rs_count DESC, percentage DESC LIMIT " + limit;
+            case MYSQL, POSTGRES -> inner
+                    + " ORDER BY " + analysisAlias(dbType, ANALYSIS_COUNT_ALIAS)
+                    + " DESC, " + analysisAlias(dbType, ANALYSIS_PERCENTAGE_ALIAS) + " DESC LIMIT " + limit;
             case ORACLE -> "SELECT * FROM (" + inner + " ORDER BY COUNT(*) DESC) WHERE ROWNUM <= " + limit;
-            case MSSQL -> "SELECT TOP " + limit + " " + column
-                    + ", COUNT(*) AS rs_count, ROUND(COUNT(*) * 100.0 / NULLIF((SELECT COUNT(*) FROM "
-                    + table + "), 0), 2) AS percentage FROM " + table + " GROUP BY " + column
+            case MSSQL -> "SELECT TOP " + limit + " " + selectList
+                    + " FROM " + table + " GROUP BY " + column
                     + " ORDER BY COUNT(*) DESC";
-            default -> throw new IllegalArgumentException("Unsupported DB type: " + dbType);
+            default -> throw new QueryFailedException("Unsupported DB type: " + dbType);
         };
     }
 
-    static String unquotedTableRef(DatabaseQueryConfig config) {
-        if (config.getDbType() == DBType.MSSQL) {
-            if (config.getSchema() != null && !config.getSchema().isEmpty()) {
-                return config.getDbName() + "." + config.getSchema() + "." + config.getTableName();
-            }
-            return config.getDbName() + ".." + config.getTableName();
+    private static String analysisSelectList(DBType dbType, String column, String table) {
+        return column
+                + ", COUNT(*) AS " + analysisAlias(dbType, ANALYSIS_COUNT_ALIAS)
+                + ", ROUND(COUNT(*) * 100.0 / NULLIF((SELECT COUNT(*) FROM " + table + "), 0), 2) AS "
+                + analysisAlias(dbType, ANALYSIS_PERCENTAGE_ALIAS);
+    }
+
+    static String analysisAlias(DBType dbType, String alias) {
+        if (dbType == DBType.ORACLE) {
+            return quoteIdentifier(dbType, alias);
         }
-        return config.getDbName() + "." + config.getTableName();
+        return alias;
+    }
+
+    static String unquotedTableRef(DatabaseQueryConfig config) {
+        return tableRef(config, false);
     }
 
     static String quotedTableRef(DatabaseQueryConfig config) {
+        return tableRef(config, true);
+    }
+
+    static String tableRef(DatabaseQueryConfig config, boolean quoted) {
         DBType dbType = config.getDbType();
-        if (dbType == DBType.MSSQL) {
-            if (config.getSchema() != null && !config.getSchema().isEmpty()) {
-                return quoteIdentifier(dbType, config.getDbName()) + "."
-                        + quoteIdentifier(dbType, config.getSchema()) + "."
-                        + quoteIdentifier(dbType, config.getTableName());
-            }
-            return quoteIdentifier(dbType, config.getDbName()) + ".."
-                    + quoteIdentifier(dbType, config.getTableName());
+        if (dbType == null) {
+            String table = config.getTableName();
+            return notEmpty(config.getDbName()) ? config.getDbName() + "." + table : table;
         }
-        return quoteIdentifier(dbType, config.getDbName()) + "."
-                + quoteIdentifier(dbType, config.getTableName());
+        String table = ident(dbType, config.getTableName(), quoted);
+        if (dbType == DBType.MSSQL) {
+            if (notEmpty(config.getSchema())) {
+                return ident(dbType, config.getDbName(), quoted) + "."
+                        + ident(dbType, config.getSchema(), quoted) + "."
+                        + table;
+            }
+            return ident(dbType, config.getDbName(), quoted) + ".." + table;
+        }
+        if (dbType == DBType.POSTGRES || dbType == DBType.ORACLE) {
+            if (notEmpty(config.getSchema())) {
+                return ident(dbType, config.getSchema(), quoted) + "." + table;
+            }
+            if (notEmpty(config.getDbName())) {
+                return ident(dbType, config.getDbName(), quoted) + "." + table;
+            }
+            return table;
+        }
+        if (notEmpty(config.getDbName())) {
+            return ident(dbType, config.getDbName(), quoted) + "." + table;
+        }
+        return table;
+    }
+
+    private static String ident(DBType dbType, String identifier, boolean quoted) {
+        return quoted ? quoteIdentifier(dbType, identifier) : identifier;
+    }
+
+    private static boolean notEmpty(String value) {
+        return value != null && !value.isEmpty();
     }
 
     static String quoteIdentifier(DBType dbType, String identifier) {
@@ -255,7 +292,11 @@ public class QueryTool {
                 while (resultSet.next()) {
                     Map<String, Object> row = new LinkedHashMap<>();
                     for (int i = 1; i <= columnCount; i++) {
-                        row.put(metaData.getColumnName(i), resultSet.getObject(i));
+                        String label = metaData.getColumnLabel(i);
+                        if (label == null || label.isEmpty()) {
+                            label = metaData.getColumnName(i);
+                        }
+                        row.put(label, resultSet.getObject(i));
                     }
                     results.add(row);
                 }
