@@ -80,6 +80,22 @@ public class DataPivotStrategyActuator{
         return dataPivotRelation;
     }
 
+    public static String resolveTableName(PsiClass currentClass, DataPivotStrategyInfo strategy) {
+        if (currentClass == null || strategy == null || strategy.getOrmMapper() == null
+                || strategy.getOrmMapper().getStructMethod() == null) {
+            return null;
+        }
+        return getStructName(currentClass, strategy.getOrmMapper().getStructMethod());
+    }
+
+    public static String resolveColumnName(PsiField currentPsiField, DataPivotStrategyInfo strategy) {
+        if (currentPsiField == null || strategy == null || strategy.getOrmMapper() == null
+                || strategy.getOrmMapper().getElementMethod() == null) {
+            return null;
+        }
+        return getElementName(currentPsiField, strategy.getOrmMapper().getElementMethod());
+    }
+
     private static String getStructName (PsiClass currentClass, DataPivotMapperMethodInfo dataPivotMapperMethodInfo) {
         String type = dataPivotMapperMethodInfo.getType();
         if (MapperMethodType.ANNOTATION.getName().equals(type)) {

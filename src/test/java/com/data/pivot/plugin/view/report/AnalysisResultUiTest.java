@@ -66,6 +66,15 @@ public class AnalysisResultUiTest extends DataPivotPlatformTestCase {
         assertEquals("ACTIVE", element.getData());
     }
 
+    public void testLoadResultsUsesInjectedRunnerWithoutLiveJdbc() {
+        AnalysisResultComponent dialog = createDialog(List.of());
+        dialog.loadResults(config -> UiTestFixtures.analysisRows());
+
+        assertEquals(2, dialog.getResultTable().getRowCount());
+        assertEquals("ACTIVE", dialog.getResultTable().getValueAt(0, 0));
+        assertEquals(DataPivotBundle.message("data.pivot.analysis.status.rows", 2), dialog.getStatusLabel().getText());
+    }
+
     private AnalysisResultComponent createDialog(List<AnalysisRow> rows) {
         DatabaseQueryConfig config = UiTestFixtures.userAccountConfig();
         return new AnalysisResultComponent(getProject(), config, rows, sampleSql());

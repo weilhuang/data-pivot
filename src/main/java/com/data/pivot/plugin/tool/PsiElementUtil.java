@@ -45,10 +45,12 @@ public class PsiElementUtil {
         dataPivotRelation.setColumnName(columnName);
         dataPivotRelation.setColumnList(columnNameList);
         dataPivotRelation.setDbColumn(dbColumn);
-        DataPivotMappingSettingInfo dataPivotMappingSettingInfo = DataPivotUtil.getRelationDataPivotSettingInfo(databaseReference);
+        DataPivotMappingSettingInfo dataPivotMappingSettingInfo =
+                DataPivotUtil.getRelationDataPivotSettingInfo(psiElement.getProject(), databaseReference);
         dataPivotRelation.setDataPivotMappingSettingInfo(dataPivotMappingSettingInfo);
         if (dataPivotMappingSettingInfo != null) {
-            dataPivotRelation.setDataPivotStrategyInfo(DataPivotApplication.getDataPivotStrategyInfo(dataPivotMappingSettingInfo.getStrategyCode()));
+            dataPivotRelation.setDataPivotStrategyInfo(DataPivotApplication.getDataPivotStrategyInfo(
+                    psiElement.getProject(), dataPivotMappingSettingInfo.getStrategyCode()));
         }
         return dataPivotRelation;
     }
@@ -75,12 +77,31 @@ public class PsiElementUtil {
         dataPivotObject.setCurrentFieldName(currentField.getName());
         dataPivotObject.setPackageReference(DataPivotUtil.createPackageReference(modelName,packageName));
         dataPivotObject.setFieldReference(DataPivotUtil.createFieldReference(modelName,packageName,className,currentField.getName()));
-        DataPivotMappingSettingInfo dataPivotMappingSettingInfo = DataPivotUtil.getObjectDataPivotSettingInfo(dataPivotObject.getPackageReference());
+        DataPivotMappingSettingInfo dataPivotMappingSettingInfo = DataPivotUtil.getObjectDataPivotSettingInfo(
+                psiElement.getProject(), dataPivotObject.getPackageReference());
         dataPivotObject.setDataPivotMappingSettingInfo(dataPivotMappingSettingInfo);
         if (dataPivotMappingSettingInfo != null) {
-            dataPivotObject.setDataPivotStrategyInfo(DataPivotApplication.getDataPivotStrategyInfo(dataPivotMappingSettingInfo.getStrategyCode()));
+            dataPivotObject.setDataPivotStrategyInfo(DataPivotApplication.getDataPivotStrategyInfo(
+                    psiElement.getProject(), dataPivotMappingSettingInfo.getStrategyCode()));
         }
         return dataPivotObject;
+    }
+
+    public static @Nullable DataPivotMappingSettingInfo getMappingSetting(PsiClass psiClass) {
+        if (psiClass == null) {
+            return null;
+        }
+        Module moduleForFile = ModuleUtil.findModuleForPsiElement(psiClass);
+        if (moduleForFile == null) {
+            return null;
+        }
+        String qualifiedName = psiClass.getQualifiedName();
+        String packageName = qualifiedName == null ? null : StrUtil.subBefore(qualifiedName, ".", true);
+        if (StrUtil.isEmpty(packageName)) {
+            return null;
+        }
+        String packageReference = DataPivotUtil.createPackageReference(moduleForFile.getName(), packageName);
+        return DataPivotUtil.getObjectDataPivotSettingInfo(psiClass.getProject(), packageReference);
     }
 
 

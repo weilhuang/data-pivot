@@ -1,8 +1,9 @@
 package com.data.pivot.plugin.actions;
 
-import com.data.pivot.plugin.config.DataPivotLineMarkerProvider;
 import com.data.pivot.plugin.entity.DatabaseQueryConfig;
 import com.data.pivot.plugin.i18n.DataPivotBundle;
+import com.data.pivot.plugin.mapping.MappingHit;
+import com.data.pivot.plugin.mapping.MappingResolver;
 import com.data.pivot.plugin.tool.DataGripUtil;
 import com.data.pivot.plugin.tool.MessageUtil;
 import com.data.pivot.plugin.view.query.QueryTableComponent;
@@ -46,19 +47,24 @@ public class DataPivotQueryAction extends AnAction {
         Project project = e.getProject();
         Editor editor = e.getData(CommonDataKeys.EDITOR);
         PsiElement psiElement = e.getData(CommonDataKeys.PSI_ELEMENT);
-        if (project == null || editor == null || !(psiElement instanceof PsiField)) {
+        if (project == null || editor == null || !(psiElement instanceof PsiField psiField)) {
             return;
         }
 
-        PsiField psiField = (PsiField) psiElement;
         PsiClass containingClass = psiField.getContainingClass();
-        DbTable tableInfo = DataPivotLineMarkerProvider.getTableInfo(containingClass);
-        if (tableInfo == null) {
+        MappingHit fieldHit = MappingResolver.resolveField(psiField);
+        if (fieldHit.isAmbiguous()) {
             MessageUtil.Hint.error(editor, DataPivotBundle.message(
-                    "data.pivot.query.hint.table.null", containingClass.getName()));
+                    "data.pivot.query.hint.table.ambiguous", containingClass == null ? psiField.getName() : containingClass.getName()));
             return;
         }
-        DbColumn columnInfo = DataPivotLineMarkerProvider.getColumnInfo(tableInfo, psiField);
+        DbTable tableInfo = fieldHit.getTable();
+        if (tableInfo == null) {
+            MessageUtil.Hint.error(editor, DataPivotBundle.message(
+                    "data.pivot.query.hint.table.null", containingClass == null ? psiField.getName() : containingClass.getName()));
+            return;
+        }
+        DbColumn columnInfo = fieldHit.getColumn();
         if (columnInfo == null) {
             MessageUtil.Hint.error(editor, DataPivotBundle.message(
                     "data.pivot.query.hint.column.null", psiField.getName()));
@@ -69,10 +75,14 @@ public class DataPivotQueryAction extends AnAction {
         if (allCarets.size() < 2) {
             allCaretsText.add("*");
         } else {
+            MappingHit tableHit = MappingResolver.resolveTable(containingClass);
             for (Caret allCaret : allCarets) {
-                DbColumn dbColumn = DataPivotLineMarkerProvider.getColumnInfo(tableInfo, allCaret.getSelectedText());
-                if (dbColumn != null) {
-                    allCaretsText.add(dbColumn.getName());
+                PsiField caretField = containingClass == null ? null : containingClass.findFieldByName(allCaret.getSelectedText(), false);
+                MappingHit columnHit = caretField != null
+                        ? MappingResolver.resolveColumn(tableHit, caretField)
+                        : MappingResolver.resolveColumn(tableHit, allCaret.getSelectedText(), null);
+                if (columnHit.getColumn() != null && !columnHit.isAmbiguous()) {
+                    allCaretsText.add(columnHit.getColumn().getName());
                 }
             }
         }
@@ -92,6 +102,8 @@ public class DataPivotQueryAction extends AnAction {
         }
         DatabaseQueryConfig databaseQueryConfig = DataGripUtil.loadDatabaseQueryConfig(
                 localDataSource, tableInfo, allCaretsText, columnInfo);
-        QueryTableComponent.getInstance(project, databaseQueryConfig).show();
+        QueryTableComponent dialog = QueryTableComponent.getInstance(project, databaseQueryConfig);
+        dialog.refreshFromDatabase();
+        dialog.show();
     }
 }

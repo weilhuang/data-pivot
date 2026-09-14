@@ -29,6 +29,10 @@ public enum DBType {
         return null;
     }
 
+    public static boolean supportsJdbcQuery(DBType type) {
+        return type == MYSQL || type == POSTGRES || type == ORACLE || type == MSSQL;
+    }
+
     DBType(String name, String... aliases) {
         this.name = name;
         this.aliases = aliases;

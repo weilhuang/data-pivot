@@ -10,10 +10,21 @@
 - 扩展 `unitTest`、`integrationTest`、`ideaUiTest` 覆盖查询/分析/设置/导航展示与纯逻辑。
 - Gradle 任务 `verifyPluginFast`：只做插件结构校验，不下载额外 IDE。
 - CI 对齐 IntelliJ Platform Plugin Template：Build → Test（`check`）→ Verify → Release draft；失败时上传测试报告。跨平台 `ideaUiTest` 矩阵改为手动/每周定时，PR 仍在 ubuntu 上跑完整测试套件。
+- Query / Analysis / 装订线共用 `MappingResolver`：已配置 Settings 时走与 ORM 相同的策略路径；未配置时仅接受唯一命中，歧义不再暗中取最大相似度。
+- Analysis 按 MySQL / PostgreSQL / Oracle / SQL Server 方言生成分布 SQL（含标识符引用），并限制前 20 个区分值。
+- 查询与分析错误改为状态栏 + Notification（已注册 `Data Pivot Messages` 通知组），不再弹出阻塞式错误对话框。
 
 ### Changed
 - Settings 的 Apply 状态改为真实 `isModified()` / `reset()`，工作副本与缓存分离。
 - 动作文案、Query/Analysis 错误与装订线提示改为 i18n，并声明 `ActionUpdateThread.BGT`。
+- 默认 HumpUnderline / JPA / MyBatis-Plus 回退的驼峰转换改为正确的捕获组大写（`hello_world_test` → `helloWorldTest`，`USER_ID` → `userId`）。
+- 启动不再对每个数据源抢 JDBC 连接；连接池仅由 Query 按需创建，dispose 仍关闭 `QueryTool` 与驱动。
+- Query / Analysis 的 JDBC 移出 EDT：先展示对话框与「正在查询」，再在后台任务回写结果。
+- 装订线仅在高置信（精确名或 Settings 策略命中）时显示，并按 Profile 缩小数据源/库扫描；缓存随 PSI 修改、schema 刷新与 Settings Apply 失效，不再按访问次数驱逐。
+- Settings 帮助文案改为如实描述映射优先级、模糊回退与 Analysis 方言 SQL；实体上的 `sqlCode` / 自定义 SQL 字段保留反序列化但不再生效。
+- PostgreSQL / Oracle 在存在 schema 时用 `schema.table` 限定，不再把数据库名当成 schema。
+- Oracle Analysis 给 `rs_count` / `percentage` 加引号，避免未加引号别名被转成大写后对不上结果列。
+- Analysis 对 MongoDB / 未知 DBMS 提前给出用户可见错误，不再抛出未处理的 `IllegalArgumentException`。
 
 ## [2.2.0] - 2026-06-06
 ### Added

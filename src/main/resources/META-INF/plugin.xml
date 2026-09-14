@@ -53,6 +53,7 @@
         <codeInsight.lineMarkerProvider language="JAVA" order="last"
                                         implementationClass="com.data.pivot.plugin.config.DataPivotLineMarkerProvider"/>
         <projectService serviceImplementation="com.data.pivot.plugin.context.DataPivotApplication" />
+        <notificationGroup id="Data Pivot Messages" displayType="BALLOON" key="data.pivot.notice.title"/>
         <projectConfigurable
                 parentId="tools"
                 instance="com.data.pivot.plugin.view.setting.DataPivotMappingSettingView"

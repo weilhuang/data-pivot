@@ -23,6 +23,7 @@ public class DataPivotConstants {
     public static final String SQL_COLUMN_CODE = "{columnName}";
     public static final Integer DEFAULT_PAGE_NUM = 1; //页数
     public static final Integer DEFAULT_PAGE_SIZE = 20; //每页查询数量
+    /** Legacy MySQL-only analysis template kept for persisted Settings JSON. */
     public static final String DEFAULT_SQL_CONTENT = "SELECT     \n" +
             SQL_COLUMN_CODE +","+
             "    COUNT(*) AS rs_count,    \n" +

@@ -4,6 +4,8 @@ import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONUtil;
 import com.data.pivot.plugin.entity.DatabaseQueryConfig;
 import com.data.pivot.plugin.i18n.DataPivotBundle;
+import com.data.pivot.plugin.tool.BackgroundQuerySupport;
+import com.data.pivot.plugin.tool.MessageUtil;
 import com.data.pivot.plugin.tool.QueryTool;
 import com.data.pivot.plugin.view.ui.DataPivotUi;
 import com.intellij.openapi.actionSystem.AnActionEvent;
@@ -46,6 +48,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 public class QueryTableComponent extends DialogWrapper {
@@ -53,8 +56,10 @@ public class QueryTableComponent extends DialogWrapper {
 
     private final DatabaseQueryConfig databaseQueryConfig;
     private final QueryRunner queryRunner;
+    private final Project project;
     private final Alarm remoteSearchAlarm;
     private final Alarm localSearchAlarm;
+    private final AtomicInteger queryGeneration = new AtomicInteger();
 
     private JBTable queryResultTable;
     private ResultTableModel resultTableModel;
@@ -76,6 +81,7 @@ public class QueryTableComponent extends DialogWrapper {
                                @NotNull List<Map<String, Object>> queryResults,
                                @NotNull QueryRunner queryRunner) {
         super(project, false);
+        this.project = project;
         this.databaseQueryConfig = databaseQueryConfig;
         this.queryRunner = queryRunner;
         this.remoteSearchAlarm = new Alarm(Alarm.ThreadToUse.SWING_THREAD, getDisposable());
@@ -99,11 +105,11 @@ public class QueryTableComponent extends DialogWrapper {
     public static @NotNull QueryTableComponent getInstance(@Nullable Project project,
                                                            @NotNull DatabaseQueryConfig databaseQueryConfig,
                                                            @NotNull QueryRunner queryRunner) {
-        List<Map<String, Object>> queryResults = queryRunner.query(databaseQueryConfig);
-        if (queryResults == null) {
-            queryResults = List.of();
-        }
-        return new QueryTableComponent(project, databaseQueryConfig, queryResults, queryRunner);
+        return new QueryTableComponent(project, databaseQueryConfig, List.of(), queryRunner);
+    }
+
+    public void refreshFromDatabase() {
+        updateTable(remoteSearchField == null ? databaseQueryConfig.getLikeValue() : remoteSearchField.getText());
     }
 
     private void initModel(@NotNull List<Map<String, Object>> queryResults) {
@@ -277,6 +283,9 @@ public class QueryTableComponent extends DialogWrapper {
     }
 
     void handleLocalSearchInput() {
+        if (localSearchField == null || queryResultTable == null || resultTableModel == null) {
+            return;
+        }
         String query = localSearchField.getText();
         clearHighlights();
         if (StrUtil.isEmpty(query)) {
@@ -295,21 +304,55 @@ public class QueryTableComponent extends DialogWrapper {
     }
 
     void updateTable(@Nullable String query) {
-        statusLabel.setText(DataPivotBundle.message("data.pivot.query.status.searching"));
+        if (statusLabel != null) {
+            statusLabel.setText(DataPivotBundle.message("data.pivot.query.status.searching"));
+        }
+        if (queryResultTable != null) {
+            queryResultTable.getEmptyText().setText(DataPivotBundle.message("data.pivot.query.status.searching"));
+        }
         if (StrUtil.isEmpty(query)) {
             databaseQueryConfig.setLikeValue(null);
         } else {
             databaseQueryConfig.setLikeValue(query);
         }
-        List<Map<String, Object>> updatedResults = queryRunner.query(databaseQueryConfig);
-        if (updatedResults == null) {
-            updatedResults = List.of();
+        int generation = queryGeneration.incrementAndGet();
+        BackgroundQuerySupport.execute(
+                project,
+                DataPivotBundle.message("data.pivot.query.title"),
+                () -> queryRunner.query(databaseQueryConfig),
+                result -> applyQueryResult(generation, result)
+        );
+    }
+
+    private void applyQueryResult(int generation, @NotNull BackgroundQuerySupport.Result result) {
+        if (generation != queryGeneration.get()) {
+            return;
         }
-        String[] columnNames = resolveColumnNames(updatedResults);
-        resultTableModel.updateData(toRows(updatedResults, columnNames), columnNames);
-        DataPivotUi.applyFixedColumnWidths(queryResultTable);
+        if (result.isCancelled()) {
+            if (statusLabel != null) {
+                statusLabel.setText(DataPivotBundle.message("data.pivot.query.status.cancelled"));
+            }
+            return;
+        }
+        if (result.isError()) {
+            applyRows(List.of());
+            if (statusLabel != null) {
+                statusLabel.setText(DataPivotBundle.message("data.pivot.query.status.error"));
+            }
+            MessageUtil.Notice.error(result.getError());
+            return;
+        }
+        applyRows(result.getRows());
         handleLocalSearchInput();
         refreshStatus();
+    }
+
+    private void applyRows(@NotNull List<Map<String, Object>> updatedResults) {
+        String[] columnNames = resolveColumnNames(updatedResults);
+        resultTableModel.updateData(toRows(updatedResults, columnNames), columnNames);
+        if (queryResultTable != null) {
+            DataPivotUi.applyFixedColumnWidths(queryResultTable);
+        }
     }
 
     private void refreshStatus() {

@@ -2,6 +2,9 @@ package com.data.pivot.plugin.view.report;
 
 import com.data.pivot.plugin.entity.DatabaseQueryConfig;
 import com.data.pivot.plugin.i18n.DataPivotBundle;
+import com.data.pivot.plugin.tool.BackgroundQuerySupport;
+import com.data.pivot.plugin.tool.MessageUtil;
+import com.data.pivot.plugin.view.query.QueryRunner;
 import com.data.pivot.plugin.view.ui.DataPivotUi;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.CommonShortcuts;
@@ -31,8 +34,10 @@ public class AnalysisResultComponent extends DialogWrapper {
     private final DatabaseQueryConfig databaseQueryConfig;
     private final List<AnalysisRow> rows;
     private final String sql;
+    private final Project project;
 
     private JBTable resultTable;
+    private AnalysisTableModel tableModel;
     private JBLabel statusLabel;
     private JBLabel hintLabel;
     private JBTextArea sqlArea;
@@ -43,6 +48,7 @@ public class AnalysisResultComponent extends DialogWrapper {
                                    @NotNull List<AnalysisRow> rows,
                                    @NotNull String sql) {
         super(project, false);
+        this.project = project;
         this.databaseQueryConfig = databaseQueryConfig;
         this.rows = new ArrayList<>(rows);
         this.sql = sql;
@@ -58,7 +64,8 @@ public class AnalysisResultComponent extends DialogWrapper {
 
     @Override
     protected @NotNull JComponent createCenterPanel() {
-        resultTable = new JBTable(new AnalysisTableModel(rows));
+        tableModel = new AnalysisTableModel(this.rows);
+        resultTable = new JBTable(tableModel);
         DataPivotUi.configureTable(resultTable, DataPivotBundle.message("data.pivot.analysis.empty"));
         resultTable.setAutoResizeMode(javax.swing.JTable.AUTO_RESIZE_ALL_COLUMNS);
         resultTable.addMouseListener(new MouseAdapter() {
@@ -127,6 +134,53 @@ public class AnalysisResultComponent extends DialogWrapper {
     @Override
     protected @Nullable String getDimensionServiceKey() {
         return "data-pivot.analysis.dialog";
+    }
+
+    public void loadResults(@NotNull QueryRunner queryRunner) {
+        if (statusLabel != null) {
+            statusLabel.setText(DataPivotBundle.message("data.pivot.analysis.status.searching"));
+        }
+        if (resultTable != null) {
+            resultTable.getEmptyText().setText(DataPivotBundle.message("data.pivot.analysis.status.searching"));
+        }
+        BackgroundQuerySupport.execute(
+                project,
+                DataPivotBundle.message("data.pivot.analysis.title"),
+                () -> queryRunner.query(databaseQueryConfig),
+                this::applyQueryResult
+        );
+    }
+
+    private void applyQueryResult(@NotNull BackgroundQuerySupport.Result result) {
+        if (result.isCancelled()) {
+            if (statusLabel != null) {
+                statusLabel.setText(DataPivotBundle.message("data.pivot.analysis.status.cancelled"));
+            }
+            return;
+        }
+        if (result.isError()) {
+            rows.clear();
+            if (tableModel != null) {
+                tableModel.fireTableDataChanged();
+            }
+            if (statusLabel != null) {
+                statusLabel.setText(DataPivotBundle.message("data.pivot.analysis.status.error"));
+            }
+            MessageUtil.Notice.error(result.getError());
+            return;
+        }
+        List<AnalysisRow> next = AnalysisResultModel.fromMaps(result.getRows(), databaseQueryConfig.getConditionField());
+        rows.clear();
+        rows.addAll(next);
+        if (tableModel != null) {
+            tableModel.fireTableDataChanged();
+        }
+        if (statusLabel != null) {
+            statusLabel.setText(statusText());
+        }
+        if (resultTable != null) {
+            resultTable.getEmptyText().setText(DataPivotBundle.message("data.pivot.analysis.empty"));
+        }
     }
 
     public boolean copySql() {

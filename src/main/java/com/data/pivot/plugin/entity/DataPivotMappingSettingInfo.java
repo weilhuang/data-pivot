@@ -18,7 +18,14 @@ public class DataPivotMappingSettingInfo implements DataPivotStorage<List<DataPi
     private String strategyCode;//映射类型:JPA/MP/自定义{表注解(值),字段注解(值)}
     private String databaseReference;
     private String packageReference;
+    /**
+     * Unused. Analysis SQL is generated per {@link com.data.pivot.plugin.enums.DBType}.
+     * Kept so persisted Settings JSON continues to deserialize.
+     */
     private String sqlCode = DataPivotConstants.DEFAULT_SQL_CODE;
+    /**
+     * Unused. See {@link #sqlCode}. Not shown in the Settings form.
+     */
     private DataPivotCustomSqlInfo dataPivotCustomSqlInfo = DataPivotDefaultInitializer.getDefaultSql();
 
     public String getSqlCode() {
