@@ -11,7 +11,7 @@
 </br>
 
 [![Downloads](https://img.shields.io/jetbrains/plugin/d/com.github.wl2027.datapivotplugin.svg)](https://plugins.jetbrains.com/plugin/23828-data-pivot)
-![Downloads](https://img.shields.io/github/release/wl2027/data-pivot.svg)
+![Downloads](https://img.shields.io/github/release/weilhuang/data-pivot.svg)
 ![MySQL](https://img.shields.io/badge/MySQL-支持-brightgreen.svg)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-支持-blue.svg)
 ![Oracle](https://img.shields.io/badge/Oracle-支持-red.svg)
@@ -20,8 +20,8 @@
 ![Drivers](https://img.shields.io/badge/JDBC%20Drivers-IDEA%20Data%20Sources-blue.svg)
 ![Downloads](https://img.shields.io/badge/license-GPLv3-blue.svg)
 ![Downloads](https://img.shields.io/badge/Java-21-brightgreen.svg?style=flat)
-![Downloads](https://img.shields.io/github/stars/wl2027/data-pivot)
-[![GitHub](https://img.shields.io/static/v1?label=&message=GitHub&logo=github&color=black&labelColor=555)](https://github.com/wl2027/data-pivot) 
+![Downloads](https://img.shields.io/github/stars/weilhuang/data-pivot)
+[![GitHub](https://img.shields.io/static/v1?label=&message=GitHub&logo=github&color=black&labelColor=555)](https://github.com/weilhuang/data-pivot) 
 [![Gitee](https://img.shields.io/static/v1?label=&message=Gitee&logo=gitee&color=orange&labelColor=555)](https://gitee.com/wl2027/data-pivot)
 [![Version](https://img.shields.io/jetbrains/plugin/v/com.github.wl2027.datapivotplugin.svg)](https://plugins.jetbrains.com/plugin/23828-data-pivot)
 
@@ -57,7 +57,7 @@ The plugin does not bundle JDBC drivers anymore. It loads the driver already con
 
 In the future, we will continue to expand and optimize the plugin's functions, providing more configurable strategy mappings and configurable report scripts, while also adapting to more databases.
 
-Detailed operation documents: [https://github.com/wl2027/data-pivot](https://github.com/wl2027/data-pivot)
+Detailed operation documents: [https://github.com/weilhuang/data-pivot](https://github.com/weilhuang/data-pivot)
 
 ### 中文:
 **data-pivot** 是一个IDEA的数据分析工具，旨在为开发人员提供便捷的对象关系映射导航和数据查询和报表分析功能。
@@ -84,7 +84,7 @@ Detailed operation documents: [https://github.com/wl2027/data-pivot](https://git
 未来，我们将继续扩展和优化插件功能，提供更多配置化策略映射和配置化报表脚本，同时适配更多数据库。
 
 
-详细操作说明文档: [https://github.com/wl2027/data-pivot](https://github.com/wl2027/data-pivot)
+详细操作说明文档: [https://github.com/weilhuang/data-pivot](https://github.com/weilhuang/data-pivot)
 
 <!-- Plugin description end -->
 
@@ -103,7 +103,7 @@ Detailed operation documents: [https://github.com/wl2027/data-pivot](https://git
 
 - **Manually:**
 
-  Download the [latest release](https://github.com/wl2027/data-pivot-plugin/releases/latest) and install it manually using
+  Download the [latest release](https://github.com/weilhuang/data-pivot/releases/latest) and install it manually using
   <kbd>Settings/Preferences</kbd> > <kbd>Plugins</kbd> > <kbd>⚙️</kbd> > <kbd>Install plugin from disk...</kbd>
 
 Restart the **IDE** after installation.
@@ -206,9 +206,9 @@ The `integrationTest` and `ideaUiTest` tasks run against the IntelliJ Platform t
 
 ## Contributing
 
-Welcome to contribute to the project! You can fix bugs by submitting a Pull Request (PR) or discuss new features or changes by creating an [Issue](https://github.com/wl2027/data-pivot-plugin/issues/). Look forward to your valuable contributions!
+Welcome to contribute to the project! You can fix bugs by submitting a Pull Request (PR) or discuss new features or changes by creating an [Issue](https://github.com/weilhuang/data-pivot/issues/). Look forward to your valuable contributions!
 
-欢迎参与项目贡献！如您可以通过提交Pull Request（PR）来修复bug，或者新建 [Issue](https://github.com/wl2027/data-pivot-plugin/issues/) 来讨论新特性或变更，期待您的宝贵贡献！
+欢迎参与项目贡献！如您可以通过提交Pull Request（PR）来修复bug，或者新建 [Issue](https://github.com/weilhuang/data-pivot/issues/) 来讨论新特性或变更，期待您的宝贵贡献！
 
 ---
 Plugin based on the [IntelliJ Platform Plugin Template][template].

@@ -5,6 +5,11 @@
 ## [Unreleased]
 
 ### Added
+
+### Changed
+
+## [2.3.0] - 2026-09-14
+### Added
 - Query、Analysis 对话框与 Settings 页的现代化交互（DialogWrapper、SearchTextField、空态/状态栏、主题高亮、快捷键、可访问名称）。
 - Analysis 以字段值分布表替代 Lookup 弹层作为主界面，并支持复制 SQL / 选中值。
 - 扩展 `unitTest`、`integrationTest`、`ideaUiTest` 覆盖查询/分析/设置/导航展示与纯逻辑。
@@ -25,6 +30,7 @@
 - PostgreSQL / Oracle 在存在 schema 时用 `schema.table` 限定，不再把数据库名当成 schema。
 - Oracle Analysis 给 `rs_count` / `percentage` 加引号，避免未加引号别名被转成大写后对不上结果列。
 - Analysis 对 MongoDB / 未知 DBMS 提前给出用户可见错误，不再抛出未处理的 `IllegalArgumentException`。
+- 多项目 Settings 下，映射与策略查找使用 PsiElement 所属 `Project`（`DataPivotApplication.getInstance(Project)`），不再依赖当前聚焦窗口。
 
 ## [2.2.0] - 2026-06-06
 ### Added
@@ -101,12 +107,13 @@
 - Project initialization, covering data analysis, ORM & ROM navigation.
 - 项目初始化，包含数据分析、ORM&ROM导航。
 
-[Unreleased]: https://github.com/wl2027/data-pivot-plugin/compare/2.2.0...HEAD
-[2.2.0]: https://github.com/wl2027/data-pivot-plugin/compare/2.1.0...2.2.0
-[2.1.0]: https://github.com/wl2027/runtime-pivot/compare/2.0.0...2.1.0
-[2.0.0]: https://github.com/wl2027/runtime-pivot/compare/1.1.2...2.0.0
-[1.1.2]: https://github.com/wl2027/runtime-pivot/compare/1.1.1...1.1.2
-[1.1.1]: https://github.com/wl2027/runtime-pivot/compare/1.1.0...1.1.1
-[1.1.0]: https://github.com/wl2027/runtime-pivot/compare/1.0.1...1.1.0
-[1.0.1]: https://github.com/wl2027/runtime-pivot/compare/1.0.0...1.0.1
-[1.0.0]: https://github.com/wl2027/runtime-pivot/commits/1.0.0
+[Unreleased]: https://github.com/weilhuang/data-pivot/compare/2.3.0...HEAD
+[2.3.0]: https://github.com/weilhuang/data-pivot/compare/2.2.0...2.3.0
+[2.2.0]: https://github.com/weilhuang/data-pivot/compare/2.1.0...2.2.0
+[2.1.0]: https://github.com/weilhuang/data-pivot/compare/2.0.0...2.1.0
+[2.0.0]: https://github.com/weilhuang/data-pivot/compare/1.1.2...2.0.0
+[1.1.2]: https://github.com/weilhuang/data-pivot/compare/1.1.1...1.1.2
+[1.1.1]: https://github.com/weilhuang/data-pivot/compare/1.1.0...1.1.1
+[1.1.0]: https://github.com/weilhuang/data-pivot/compare/1.0.1...1.1.0
+[1.0.1]: https://github.com/weilhuang/data-pivot/compare/1.0.0...1.0.1
+[1.0.0]: https://github.com/weilhuang/data-pivot/commits/1.0.0
