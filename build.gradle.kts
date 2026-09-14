@@ -202,6 +202,8 @@ tasks {
         testClassesDirs = defaultTest.get().testClassesDirs
         classpath = defaultTest.get().classpath
         systemProperty("idea.load.plugins", "false")
+        // Match GitHub Actions ubuntu-latest (no display) so AWT HeadlessToolkit issues fail locally too.
+        systemProperty("java.awt.headless", "true")
         include("**/*UiTest.class")
     }
 
