@@ -19,7 +19,7 @@ import java.util.List;
  * not {@code ProjectUtils.getCurrProject()}.
  */
 @RunWith(JUnit38AssumeSupportRunner.class)
-public class MappingResolverProjectTest extends DataPivotPlatformTestCase {
+public class MappingResolverProjectIntegrationTest extends DataPivotPlatformTestCase {
     public void testSettingsStrategyAndDatabaseMapsUsePassedProject() {
         Project psiProject = getProject();
         Project otherProject = ProjectManager.getInstance().getDefaultProject();
